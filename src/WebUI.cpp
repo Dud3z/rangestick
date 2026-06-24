@@ -384,6 +384,13 @@ String pageShell(const char* title, const char* activeNavId, const String& bodyH
 
 void registerSettingsRoutes(WebServer& server, bool includeWifiSetupLink) {
     gShowWifiSetupLink = includeWifiSetupLink;
+    if (!includeWifiSetupLink) {
+        // On the STA-mode server there's no AP-specific WiFi-join page to put at "/" (that's
+        // WifiPortal's own route, registered separately on its AP server) -- default the root
+        // path, and anything unrecognised, to the status page instead of a bare 404.
+        server.on("/", HTTP_GET, [&server]() { handleStatus(server); });
+        server.onNotFound([&server]() { handleStatus(server); });
+    }
     server.on("/status", HTTP_GET, [&server]() { handleStatus(server); });
     server.on("/settings", HTTP_GET, [&server]() { handleStatus(server); });
     server.on("/settings/display", HTTP_GET, [&server]() { handleSettingsDisplay(server); });
