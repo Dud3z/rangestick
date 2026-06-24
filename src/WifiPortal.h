@@ -8,6 +8,10 @@
 // network and enter the password. Driven from Settings (NETWORK > "Set up WiFi") -- start()/
 // stop() switch WiFi on/off specifically just for this flow, so the stick otherwise keeps
 // running radio-free as usual (battery).
+//
+// The same server also exposes a full settings editor (one page per category, mirroring the
+// on-device Settings menu) under /settings -- linked from the WiFi-setup page so both are
+// reachable from the single AP session, without a second menu entry/AP.
 class WifiPortal {
 public:
     enum class State { IDLE, RUNNING, SAVED_OK, SAVED_FAIL };
@@ -34,4 +38,12 @@ private:
     void handleRoot();
     void handleSave();
     void handleNotFound();
+
+    void handleSettingsHome();
+    void handleSettingsDisplay();
+    void handleSettingsShotTimer();
+    void handleSettingsAntiCant();
+    void handleSettingsStability();
+    void handleSettingsSystem();
+    void handleSettingsReset();
 };

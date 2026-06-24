@@ -33,12 +33,16 @@ public:
     void onExit() override;
     void loop() override;
     const char* name() const override { return "SHOT TIMER"; }
-    // Not busy only in IDLE -- during delay/running/result/learning the screen should not dim,
-    // even if no button is pressed in the meantime.
+    // Not busy only in IDLE -- during delay/running/result/learning/history the screen should
+    // not dim, even if no button is pressed in the meantime.
     bool isBusy() const override { return state_ != State::IDLE; }
+    // Long A in IDLE opens the session history instead of exiting to the main menu (and long A
+    // in HISTORY/HISTORY_CLEAR_CONFIRM steps back), reusing the existing "long press = one level"
+    // gesture instead of inventing a new, hard-to-verify multi-tier button hold.
+    bool handleBack() override;
 
 private:
-    enum class State { IDLE, DELAY, RUNNING, STOPPED, LEARN_ARMED, LEARN_RESULT };
+    enum class State { IDLE, DELAY, RUNNING, STOPPED, LEARN_ARMED, LEARN_RESULT, HISTORY, HISTORY_CLEAR_CONFIRM };
 
     static constexpr int MAX_SHOTS = 20;
     static constexpr uint32_t BEEP_BLANK_MS = 200;    // pause right after the beep (switchover/ringing time)
@@ -78,6 +82,7 @@ private:
     // in the settings menu); BtnB/PWR in IDLE still offer the quick direct toggle on the
     // respective active field.
     int listScroll_ = 0; // page index of the shot list in State::STOPPED
+    int historyScroll_ = 0; // page index of the session list in State::HISTORY
 
     int16_t micBuf_[MIC_SAMPLES] = {0};
     float recoilBuf_[RECOIL_BUF_SIZE] = {0.0f};

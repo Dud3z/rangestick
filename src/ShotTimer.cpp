@@ -5,6 +5,7 @@
 #include "Canvas.h"
 #include "Theme.h"
 #include "AppSettings.h"
+#include "ShotHistory.h"
 
 namespace {
 constexpr int16_t kThresholdMin = 2000;
@@ -65,6 +66,7 @@ void ShotTimer::onEnter() {
     state_ = State::IDLE;
     shotCount_ = 0;
     listScroll_ = 0;
+    historyScroll_ = 0;
     lastShotPeak_ = 0;
     lastDrawMs_ = 0;
     flashUntilMs_ = 0;
@@ -75,6 +77,23 @@ void ShotTimer::onEnter() {
 
 void ShotTimer::onExit() {
     disarmMic();
+}
+
+bool ShotTimer::handleBack() {
+    if (state_ == State::IDLE) {
+        state_ = State::HISTORY;
+        historyScroll_ = 0;
+        return true;
+    }
+    if (state_ == State::HISTORY) {
+        state_ = State::IDLE;
+        return true;
+    }
+    if (state_ == State::HISTORY_CLEAR_CONFIRM) {
+        state_ = State::HISTORY;
+        return true;
+    }
+    return false;
 }
 
 void ShotTimer::disarmMic() {
@@ -403,6 +422,15 @@ void ShotTimer::loop() {
                 stopElapsed_ = (shotCount_ > 0) ? shotTimes_[shotCount_ - 1] : (millis() - beepMs_);
                 state_ = State::STOPPED;
                 listScroll_ = 0;
+
+                if (shotCount_ > 0) {
+                    ShotHistory::Session session;
+                    session.shotCount = static_cast<uint8_t>(shotCount_);
+                    session.detectMode = static_cast<uint8_t>(AppSettings::shotDetectMode);
+                    int n = (shotCount_ < ShotHistory::kMaxShotsPerSession) ? shotCount_ : ShotHistory::kMaxShotsPerSession;
+                    for (int i = 0; i < n; ++i) session.shotTimesMs[i] = shotTimes_[i];
+                    ShotHistory::add(session);
+                }
             }
             break;
 
@@ -448,6 +476,30 @@ void ShotTimer::loop() {
                 state_ = State::IDLE; // discard
             }
             break;
+
+        case State::HISTORY: {
+            int totalSessions = ShotHistory::count();
+            int totalPages = (totalSessions + LIST_VISIBLE_ROWS - 1) / LIST_VISIBLE_ROWS;
+            if (totalPages < 1) totalPages = 1;
+            if (M5.BtnB.wasPressed()) {
+                historyScroll_ = (historyScroll_ - 1 + totalPages) % totalPages; // up
+            } else if (M5.BtnPWR.wasClicked()) {
+                historyScroll_ = (historyScroll_ + 1) % totalPages; // down
+            } else if (M5.BtnPWR.wasHold() && totalSessions > 0) {
+                state_ = State::HISTORY_CLEAR_CONFIRM;
+            }
+            break;
+        }
+
+        case State::HISTORY_CLEAR_CONFIRM:
+            if (M5.BtnA.wasReleased()) {
+                ShotHistory::clearAll();
+                historyScroll_ = 0;
+                state_ = State::HISTORY;
+            } else if (M5.BtnB.wasPressed() || M5.BtnPWR.wasClicked()) {
+                state_ = State::HISTORY; // cancel
+            }
+            break;
     }
 
     // Display deliberately throttled to ~14Hz, so the detection polling in State::RUNNING isn't
@@ -489,6 +541,8 @@ void ShotTimer::draw() {
             canvas.setTextColor(Theme::SUBTEXT, Theme::BG);
             canvas.setCursor(4, 142);
             canvas.print("Hold B = switch");
+            canvas.setCursor(4, 154);
+            canvas.print("Hold A = sessions");
 
             canvas.setCursor(4, 205);
             canvas.print("Hold PWR = learn mode");
@@ -655,6 +709,71 @@ void ShotTimer::draw() {
             canvas.print("B/PWR = discard");
             break;
         }
+
+        case State::HISTORY: {
+            int totalSessions = ShotHistory::count();
+            canvas.setTextColor(Theme::SUBTEXT, Theme::BG);
+            canvas.setCursor(4, 16);
+            canvas.printf("SESSIONS (%d)", totalSessions);
+
+            if (totalSessions == 0) {
+                canvas.setTextColor(Theme::TEXT, Theme::BG);
+                canvas.setCursor(4, 50);
+                canvas.print("No sessions yet.");
+            } else {
+                constexpr int kListTop = 40;
+                constexpr int kRowPitch = 16;
+                int totalPages = (totalSessions + LIST_VISIBLE_ROWS - 1) / LIST_VISIBLE_ROWS;
+                if (totalPages < 1) totalPages = 1;
+                int pageStart = historyScroll_ * LIST_VISIBLE_ROWS;
+
+                for (int row = 0; row < LIST_VISIBLE_ROWS; ++row) {
+                    int idx = pageStart + row; // 0 = most recently completed session
+                    if (idx >= totalSessions) break;
+                    ShotHistory::Session session;
+                    ShotHistory::get(idx, session);
+                    uint32_t last = (session.shotCount > 0) ? session.shotTimesMs[session.shotCount - 1] : 0;
+                    int y = kListTop + row * kRowPitch;
+                    canvas.setTextColor(Theme::TEXT, Theme::BG);
+                    canvas.setCursor(4, y);
+                    canvas.printf("#%-2d %2ush %s", totalSessions - idx, session.shotCount,
+                                  session.detectMode == 0 ? "Mic" : "Rcl");
+                    canvas.setTextColor(Theme::SUBTEXT, Theme::BG);
+                    canvas.setCursor(88, y);
+                    canvas.printf("%5.2fs", static_cast<double>(last) / 1000.0);
+                }
+
+                if (totalPages > 1) {
+                    canvas.setTextColor(Theme::SUBTEXT, Theme::BG);
+                    canvas.setCursor(4, 204);
+                    canvas.printf("Page %d/%d", historyScroll_ + 1, totalPages);
+                }
+            }
+
+            canvas.setTextColor(Theme::SUBTEXT, Theme::BG);
+            canvas.setCursor(4, 216);
+            canvas.print("Hold PWR=clear");
+            canvas.setCursor(4, 228);
+            canvas.print("Hold A=back");
+            break;
+        }
+
+        case State::HISTORY_CLEAR_CONFIRM:
+            canvas.setTextColor(Theme::BAD, Theme::BG);
+            canvas.setTextSize(2);
+            canvas.setCursor(8, 60);
+            canvas.print("Clear all?");
+            canvas.setTextSize(1);
+            canvas.setTextColor(Theme::SUBTEXT, Theme::BG);
+            canvas.setCursor(4, 100);
+            canvas.printf("%d sessions will be", ShotHistory::count());
+            canvas.setCursor(4, 112);
+            canvas.print("permanently deleted.");
+            canvas.setCursor(4, 204);
+            canvas.print("A = yes, delete");
+            canvas.setCursor(4, 220);
+            canvas.print("B/PWR = cancel");
+            break;
     }
     drawBatteryIndicator();
     canvas.pushSprite(0, 0);
