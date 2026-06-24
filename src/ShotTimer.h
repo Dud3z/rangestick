@@ -36,10 +36,10 @@ public:
     // Not busy only in IDLE -- during delay/running/result/learning/history the screen should
     // not dim, even if no button is pressed in the meantime.
     bool isBusy() const override { return state_ != State::IDLE; }
-    // Long A in IDLE opens the session history instead of exiting to the main menu (and long A
-    // in HISTORY/HISTORY_CLEAR_CONFIRM steps back), reusing the existing "long press = one level"
-    // gesture instead of inventing a new, hard-to-verify multi-tier button hold.
-    bool handleBack() override;
+    // Deliberately NOT overriding handleBack() -- long A must always be able to exit to the main
+    // menu (see main.cpp), regardless of state. The session history is instead opened/closed via
+    // holding B+PWR together (see loop()), a gesture that doesn't collide with the global "long
+    // A = back" or with B/PWR's own existing short/long actions.
 
 private:
     enum class State { IDLE, DELAY, RUNNING, STOPPED, LEARN_ARMED, LEARN_RESULT, HISTORY, HISTORY_CLEAR_CONFIRM };
@@ -88,6 +88,7 @@ private:
     float recoilBuf_[RECOIL_BUF_SIZE] = {0.0f};
     int recoilBufIdx_ = 0;
     bool modeToggleFired_ = false; // long-B in IDLE = switch mode (once per press)
+    bool historyChordFired_ = false; // holding B+PWR together opens/closes the session history
 
     uint32_t lastDrawMs_ = 0;
     uint32_t flashUntilMs_ = 0; // brief visual flash on shot detection

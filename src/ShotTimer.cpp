@@ -71,29 +71,13 @@ void ShotTimer::onEnter() {
     lastDrawMs_ = 0;
     flashUntilMs_ = 0;
     modeToggleFired_ = false;
+    historyChordFired_ = false;
     recoilBufIdx_ = 0;
     for (auto& v : recoilBuf_) v = 0.0f;
 }
 
 void ShotTimer::onExit() {
     disarmMic();
-}
-
-bool ShotTimer::handleBack() {
-    if (state_ == State::IDLE) {
-        state_ = State::HISTORY;
-        historyScroll_ = 0;
-        return true;
-    }
-    if (state_ == State::HISTORY) {
-        state_ = State::IDLE;
-        return true;
-    }
-    if (state_ == State::HISTORY_CLEAR_CONFIRM) {
-        state_ = State::HISTORY;
-        return true;
-    }
-    return false;
 }
 
 void ShotTimer::disarmMic() {
@@ -363,8 +347,21 @@ void ShotTimer::finishLearning() {
 }
 
 void ShotTimer::loop() {
+    // Holding B+PWR together opens/closes the session history -- checked before anything else
+    // so it can't also trigger B's/PWR's own short- or long-press actions for the same press.
+    bool historyChordHeld = M5.BtnB.isPressed() && M5.BtnPWR.isPressed();
+    if (historyChordHeld && !historyChordFired_ &&
+        (state_ == State::IDLE || state_ == State::HISTORY)) {
+        historyChordFired_ = true;
+        state_ = (state_ == State::IDLE) ? State::HISTORY : State::IDLE;
+        historyScroll_ = 0;
+    } else if (!historyChordHeld) {
+        historyChordFired_ = false;
+    }
+
     switch (state_) {
         case State::IDLE:
+            if (historyChordHeld) break; // consumed by the chord above, or still being held
             // Long B = switch detection mode (once per press); only if that wasn't triggered does
             // the button-release action count as "threshold up".
             if (M5.BtnB.pressedFor(600) && !modeToggleFired_) {
@@ -478,6 +475,7 @@ void ShotTimer::loop() {
             break;
 
         case State::HISTORY: {
+            if (historyChordHeld) break; // consumed by the chord above, or still being held
             int totalSessions = ShotHistory::count();
             int totalPages = (totalSessions + LIST_VISIBLE_ROWS - 1) / LIST_VISIBLE_ROWS;
             if (totalPages < 1) totalPages = 1;
@@ -542,7 +540,7 @@ void ShotTimer::draw() {
             canvas.setCursor(4, 142);
             canvas.print("Hold B = switch");
             canvas.setCursor(4, 154);
-            canvas.print("Hold A = sessions");
+            canvas.print("Hold B+PWR = sessions");
 
             canvas.setCursor(4, 205);
             canvas.print("Hold PWR = learn mode");
@@ -754,7 +752,7 @@ void ShotTimer::draw() {
             canvas.setCursor(4, 216);
             canvas.print("Hold PWR=clear");
             canvas.setCursor(4, 228);
-            canvas.print("Hold A=back");
+            canvas.print("Hold B+PWR=close");
             break;
         }
 
