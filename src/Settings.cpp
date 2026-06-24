@@ -1,9 +1,11 @@
 #include "Settings.h"
 #include <M5Unified.h>
+#include <WiFi.h>
 #include "Canvas.h"
 #include "Theme.h"
 #include "AppSettings.h"
 #include "Version.h"
+#include "Globals.h"
 #include <cstdio>
 #include <cstring>
 #include <cmath>
@@ -87,7 +89,9 @@ void Settings::onEnter() {
 
 void Settings::onExit() {
     wifiPortal_.stop();
-    wifiConnector_.disconnect();
+    // Deliberately NOT gWifiConnector.disconnect() here -- that connection is meant to survive
+    // leaving Settings (e.g. you connect, then go use the Shot Timer while staying online for a
+    // later update check). It only ends when toggled off explicitly or the device reboots.
     otaUpdater_.stop();
     AppSettings::save();
 }
@@ -413,13 +417,13 @@ void Settings::loop() {
             view_ = View::FIELD_LIST; // portal timed out / shut itself down
         }
     } else if (view_ == View::WIFI_LIST) {
-        wifiConnector_.loop();
+        gWifiConnector.loop();
         if (M5.BtnB.wasPressed()) {
-            wifiConnector_.moveSelection(-1);
+            gWifiConnector.moveSelection(-1);
         } else if (M5.BtnPWR.wasClicked()) {
-            wifiConnector_.moveSelection(+1);
+            gWifiConnector.moveSelection(+1);
         } else if (M5.BtnA.wasReleased()) {
-            wifiConnector_.confirmSelection();
+            gWifiConnector.confirmSelection();
         }
     } else if (view_ == View::OTA_FLOW) {
         otaUpdater_.loop();
@@ -446,7 +450,7 @@ void Settings::loop() {
                 wifiPortal_.start();
                 view_ = View::WIFI_FLOW;
             } else if (selectedIndex_ == WIFI_CONNECT) {
-                wifiConnector_.start();
+                gWifiConnector.start();
                 view_ = View::WIFI_LIST;
             } else if (selectedIndex_ == UPDATE_CHECK) {
                 otaUpdater_.start();
@@ -665,7 +669,7 @@ void Settings::drawWifiList() {
     canvas.setCursor(4, 2);
     canvas.print("CONNECT TO WIFI");
 
-    int n = wifiConnector_.networkCount();
+    int n = gWifiConnector.networkCount();
     if (n == 0) {
         canvas.setTextColor(Theme::TEXT, Theme::BG);
         canvas.setCursor(4, 40);
@@ -676,29 +680,29 @@ void Settings::drawWifiList() {
         canvas.print("first.");
     } else {
         int y = 26;
-        if (wifiConnector_.state() == WifiConnector::State::CONNECTING) {
+        if (gWifiConnector.state() == WifiConnector::State::CONNECTING) {
             canvas.setTextColor(Theme::TEXT, Theme::BG);
             canvas.setCursor(4, y);
             canvas.print("Connecting...");
-        } else if (wifiConnector_.errorMessage()[0] != 0) {
+        } else if (gWifiConnector.errorMessage()[0] != 0) {
             canvas.setTextColor(Theme::BAD, Theme::BG);
             canvas.setCursor(4, y);
-            canvas.print(wifiConnector_.errorMessage());
+            canvas.print(gWifiConnector.errorMessage());
         }
         y += 16;
 
         constexpr int kMaxShownChars = 17; // keep SSID + margin within the 135px screen width
         for (int i = 0; i < n; ++i) {
             char ssid[WifiConfig::kMaxSsidLen + 1];
-            wifiConnector_.networkSsid(i, ssid);
+            gWifiConnector.networkSsid(i, ssid);
             if (strlen(ssid) > kMaxShownChars) {
                 ssid[kMaxShownChars - 3] = '.';
                 ssid[kMaxShownChars - 2] = '.';
                 ssid[kMaxShownChars - 1] = '.';
                 ssid[kMaxShownChars] = 0;
             }
-            bool sel = (i == wifiConnector_.selectedIndex());
-            bool connected = wifiConnector_.isConnectedTo(i);
+            bool sel = (i == gWifiConnector.selectedIndex());
+            bool connected = gWifiConnector.isConnectedTo(i);
             uint16_t fg = connected ? Theme::GOOD : (sel ? Theme::ACCENT : Theme::TEXT);
             if (sel) {
                 canvas.fillRoundRect(0, y - 2, canvas.width(), 22, 3, Theme::PANEL);
@@ -713,6 +717,12 @@ void Settings::drawWifiList() {
                 canvas.print("*");
             }
             y += 22;
+        }
+
+        if (WiFi.status() == WL_CONNECTED) {
+            canvas.setTextColor(Theme::GOOD, Theme::BG);
+            canvas.setCursor(4, 204);
+            canvas.print(WiFi.localIP().toString());
         }
     }
 

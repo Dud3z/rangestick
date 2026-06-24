@@ -38,12 +38,4 @@ private:
     void handleRoot();
     void handleSave();
     void handleNotFound();
-
-    void handleSettingsHome();
-    void handleSettingsDisplay();
-    void handleSettingsShotTimer();
-    void handleSettingsAntiCant();
-    void handleSettingsStability();
-    void handleSettingsSystem();
-    void handleSettingsReset();
 };

@@ -21,6 +21,10 @@ M5Canvas canvas(&M5.Display);
 CantCalculator gCantCalc;
 StabilityCalculator gStabilityCalc;
 
+// WiFi connection made via Settings > NETWORK > "Connect to WiFi" -- see Globals.h for why this
+// is global instead of owned by Settings.
+WifiConnector gWifiConnector;
+
 namespace {
 
 ShotTimer shotTimer;
@@ -296,6 +300,10 @@ void loop() {
     // The only M5.update() call per pass: modules don't call it themselves, otherwise a second
     // call would overwrite the just-detected button edge.
     M5.update();
+
+    // Services the settings web server whenever a WifiConnector STA connection is active,
+    // independent of which module/screen is currently shown -- see Globals.h.
+    gWifiConnector.serviceServer();
 
     bool buttonActivity = M5.BtnA.wasPressed() || M5.BtnB.wasPressed() ||
                            M5.BtnPWR.wasClicked() || M5.BtnPWR.wasHold();

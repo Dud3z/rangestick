@@ -1,6 +1,7 @@
 #include "WifiConnector.h"
 #include <WiFi.h>
 #include <cstring>
+#include "WebUI.h"
 
 void WifiConnector::start() {
     state_ = State::LIST;
@@ -50,6 +51,7 @@ void WifiConnector::confirmSelection() {
     WifiConfig::get(selectedIndex_, ssid, pass);
 
     WiFi.mode(WIFI_STA);
+    WiFi.setHostname(kHostname);
     WiFi.begin(ssid, pass);
     connectingIndex_ = selectedIndex_;
     connectStartMs_ = millis();
@@ -65,6 +67,7 @@ void WifiConnector::loop() {
         strncpy(connectedSsid_, ssid, sizeof(connectedSsid_) - 1);
         connectedSsid_[sizeof(connectedSsid_) - 1] = 0;
         state_ = State::LIST;
+        startSettingsServer();
     } else if (millis() - connectStartMs_ > kConnectTimeoutMs) {
         WiFi.disconnect();
         strncpy(errorMsg_, "Connection failed", sizeof(errorMsg_) - 1);
@@ -73,7 +76,25 @@ void WifiConnector::loop() {
     }
 }
 
+void WifiConnector::startSettingsServer() {
+    if (serverRunning_) return;
+    WebUI::registerSettingsRoutes(settingsServer_, false);
+    settingsServer_.begin();
+    serverRunning_ = true;
+}
+
+void WifiConnector::stopSettingsServer() {
+    if (!serverRunning_) return;
+    settingsServer_.stop();
+    serverRunning_ = false;
+}
+
+void WifiConnector::serviceServer() {
+    if (serverRunning_) settingsServer_.handleClient();
+}
+
 void WifiConnector::disconnect() {
+    stopSettingsServer();
     WiFi.disconnect();
     WiFi.mode(WIFI_OFF);
     connectedSsid_[0] = 0;

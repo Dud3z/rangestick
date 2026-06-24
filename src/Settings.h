@@ -2,7 +2,6 @@
 
 #include "AppModule.h"
 #include "WifiPortal.h"
-#include "WifiConnector.h"
 #include "OtaUpdater.h"
 #include <cstddef>
 #include <cstdint>
@@ -86,6 +85,5 @@ private:
     void draw();
 
     WifiPortal wifiPortal_;
-    WifiConnector wifiConnector_;
     OtaUpdater otaUpdater_;
 };
