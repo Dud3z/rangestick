@@ -3,6 +3,7 @@
 #include "WifiConfig.h"
 
 void WifiPortal::handleRoot() {
+    lastRequestMs_ = millis();
     int n = WiFi.scanComplete();
     if (n == WIFI_SCAN_FAILED) {
         WiFi.scanNetworks(true);
@@ -34,6 +35,7 @@ void WifiPortal::handleRoot() {
 }
 
 void WifiPortal::handleSave() {
+    lastRequestMs_ = millis();
     String ssid = server_.arg("ssid");
     String pass = server_.arg("pass");
     if (ssid.length() == 0) {
@@ -42,7 +44,7 @@ void WifiPortal::handleSave() {
             "No network selected.</body>");
         return;
     }
-    WifiConfig::save(ssid.c_str(), pass.c_str());
+    WifiConfig::remember(ssid.c_str(), pass.c_str());
 
     // Test the connection while the setup AP is still running -- the ESP32 can run AP+STA at
     // the same time.
@@ -63,6 +65,7 @@ void WifiPortal::handleSave() {
 }
 
 void WifiPortal::handleNotFound() {
+    lastRequestMs_ = millis();
     server_.sendHeader("Location", String("http://") + WiFi.softAPIP().toString(), true);
     server_.send(302, "text/plain", "");
 }
@@ -81,6 +84,7 @@ void WifiPortal::start() {
     server_.begin();
 
     WiFi.scanNetworks(true);
+    lastRequestMs_ = millis();
     state_ = State::RUNNING;
 }
 
@@ -88,6 +92,9 @@ void WifiPortal::loop() {
     if (state_ == State::IDLE) return;
     dns_.processNextRequest();
     server_.handleClient();
+    if (millis() - lastRequestMs_ > kIdleTimeoutMs) {
+        stop(); // nobody used the web interface for a while -- turn WiFi back off
+    }
 }
 
 void WifiPortal::stop() {

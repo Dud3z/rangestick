@@ -1,6 +1,7 @@
 #include "Canvas.h"
 #include "Theme.h"
 #include "AppSettings.h"
+#include <WiFi.h>
 
 int drawBigNumber(const char* text, int centerX, int y, uint16_t color, int textSize) {
     canvas.setTextColor(color, Theme::BG);
@@ -49,4 +50,28 @@ void drawBatteryIndicator() {
     canvas.fillRect(x + w, y + 2, 2, h - 4, Theme::SUBTEXT);
     int fillW = (w - 4) * level / 100;
     if (fillW > 0) canvas.fillRect(x + 2, y + 2, fillW, h - 4, fillColor);
+
+    // "Connected" indicator left of the battery icon -- a real WiFi glyph (dot + nested arcs),
+    // built from full circles clipped to their upper half. That sidesteps drawArc()'s angle
+    // convention, which can't be visually verified without the device in front of you -- a
+    // previous concentric-full-circles version ended up looking like crosshair rings instead.
+    // Shown in a fixed blue whenever a phone is actively connected to the setup AP (regardless
+    // of the chosen accent color), or in the normal accent color while merely connected as a
+    // WiFi client (e.g. during an update check).
+    bool apClientConnected = WiFi.softAPgetStationNum() > 0;
+    bool staConnected = (WiFi.status() == WL_CONNECTED);
+    if (apClientConnected || staConnected) {
+        constexpr uint16_t kWifiBlue = rgb565(40, 150, 255);
+        uint16_t wifiColor = apClientConnected ? kWifiBlue : Theme::ACCENT;
+
+        int wx = x - 14;
+        int wy = y + h - 1;
+        constexpr int kMaxR = 11;
+        canvas.setClipRect(wx - kMaxR, wy - kMaxR, kMaxR * 2, kMaxR);
+        canvas.drawCircle(wx, wy, 3, wifiColor);
+        canvas.drawCircle(wx, wy, 7, wifiColor);
+        canvas.drawCircle(wx, wy, kMaxR, wifiColor);
+        canvas.clearClipRect();
+        canvas.fillCircle(wx, wy, 1, wifiColor);
+    }
 }

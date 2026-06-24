@@ -536,7 +536,7 @@ void ShotTimer::draw() {
         case State::STOPPED: {
             canvas.setTextColor(Theme::SUBTEXT, Theme::BG);
             canvas.setCursor(4, 16);
-            canvas.printf("LAST SHOT  (Shots: %d)", shotCount_);
+            canvas.printf("LAST SHOT (#%d)", shotCount_);
 
             canvas.setTextColor(Theme::GOOD, Theme::BG);
             canvas.setTextSize(2);
@@ -587,9 +587,7 @@ void ShotTimer::draw() {
             canvas.print(AppSettings::shotDetectMode == 0 ? "Mode: Microphone" : "Mode: Recoil");
             canvas.setTextColor(Theme::TEXT, Theme::BG);
             canvas.setCursor(4, 64);
-            canvas.print("Fire 1-2 shots.");
-            canvas.setCursor(4, 76);
-            canvas.print("Echo is learned too.");
+            canvas.print("Fire some shots.");
 
             char buf[8];
             snprintf(buf, sizeof(buf), "%d", learnedShotCount_);

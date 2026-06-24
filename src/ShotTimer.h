@@ -50,7 +50,7 @@ private:
     static constexpr int RECOIL_BUF_SIZE = 12;        // ring buffer for the rise-sharpness measurement
     static constexpr int RECOIL_SHARPNESS_LOOKBACK = 4; // samples before the peak compared for "rise"
 
-    static constexpr int LEARN_MAX_SHOTS = 3;        // the analysis doesn't need more
+    static constexpr int LEARN_MAX_SHOTS = 50;       // generous cap, not a hard practical limit
     static constexpr int LEARN_MAX_SECONDARY = 8;    // settling events per shot
     static constexpr uint32_t LEARN_WINDOW_MS = 600;  // capture window after each primary peak
     static constexpr uint32_t LEARN_MIN_GAP_MS = 15;  // debouncing within the recording

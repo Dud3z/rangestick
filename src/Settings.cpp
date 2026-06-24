@@ -5,12 +5,13 @@
 #include "AppSettings.h"
 #include "Version.h"
 #include <cstdio>
+#include <cstring>
 #include <cmath>
 
 namespace {
 constexpr int kBlockPitch = 30;
 constexpr int kListStartY = 28;
-constexpr int kCategoryCount = 5;
+constexpr int kCategoryCount = 6;
 constexpr int kVisibleRows = 6; // categories with more fields scroll (see draw())
 
 int clampIdx(int idx, int n) {
@@ -46,11 +47,12 @@ int Settings::categoryOf(int id) const {
     if (id >= SHOT_DETECT_MODE && id <= RECOIL_SHARPNESS) return 1; // Shot Timer
     if (id >= CANT_GREEN && id <= CANT_CALIB_COUNTDOWN) return 2;  // Anti-Cant
     if (id >= STAB_GREEN && id <= STAB_DEADZONE) return 3;        // Stability
-    return 4;                                                     // System
+    if (id == WIFI_SETUP || id == WIFI_CONNECT || id == UPDATE_CHECK) return 4; // Network
+    return 5;                                                     // System
 }
 
 const char* Settings::categoryName(int cat) const {
-    static const char* names[kCategoryCount] = {"DISPLAY", "SHOT-TIMER", "ANTI-CANT", "STABILITY", "SYSTEM"};
+    static const char* names[kCategoryCount] = {"DISPLAY", "SHOT-TIMER", "ANTI-CANT", "STABILITY", "NETWORK", "SYSTEM"};
     return names[clampIdx(cat, kCategoryCount)];
 }
 
@@ -85,6 +87,7 @@ void Settings::onEnter() {
 
 void Settings::onExit() {
     wifiPortal_.stop();
+    wifiConnector_.disconnect();
     otaUpdater_.stop();
     AppSettings::save();
 }
@@ -92,6 +95,12 @@ void Settings::onExit() {
 bool Settings::handleBack() {
     if (view_ == View::WIFI_FLOW) {
         wifiPortal_.stop();
+        view_ = View::FIELD_LIST;
+        return true;
+    }
+    if (view_ == View::WIFI_LIST) {
+        // Deliberately does not disconnect -- the connection is a separate, explicit choice
+        // (see WifiConnector) and should survive just backing out of this list.
         view_ = View::FIELD_LIST;
         return true;
     }
@@ -326,8 +335,8 @@ const char* Settings::label(int id) const {
         "Recoil threshold", "Recoil lockout", "Recoil ratio", "Sharpness filter", "Sharpness threshold",
         "Green threshold", "Yellow threshold",
         "Calib. countdown", "Green threshold", "Yellow threshold", "Graph max", "Deadzone",
-        "CPU clock", "IMU poll delay", "Battery read interval",
-        "Set up WiFi", "Check for update",
+        "CPU clock", "IMU poll delay", "Battery interval",
+        "Set up WiFi", "Connect to WiFi", "Check for update",
         "Reset to defaults",
     };
     return labels[id];
@@ -384,10 +393,11 @@ void Settings::formatValue(int id, char* buf, size_t n) const {
             else snprintf(buf, n, "%ums", AppSettings::imuPollDelayMs);
             break;
         case BATT_READ_INTERVAL:
-            if (AppSettings::battReadIntervalMs == 0) snprintf(buf, n, "Every redraw");
+            if (AppSettings::battReadIntervalMs == 0) snprintf(buf, n, "Always");
             else snprintf(buf, n, "%ums", AppSettings::battReadIntervalMs);
             break;
         case WIFI_SETUP: snprintf(buf, n, "Press A"); break;
+        case WIFI_CONNECT: snprintf(buf, n, "Press A"); break;
         case UPDATE_CHECK: snprintf(buf, n, "Press A"); break;
         case RESET_DEFAULTS: snprintf(buf, n, "Press A"); break;
         default: buf[0] = 0; break;
@@ -399,6 +409,18 @@ void Settings::loop() {
     // the main menu" (main.cpp) -- see the comment there and in handleBack().
     if (view_ == View::WIFI_FLOW) {
         wifiPortal_.loop();
+        if (wifiPortal_.state() == WifiPortal::State::IDLE) {
+            view_ = View::FIELD_LIST; // portal timed out / shut itself down
+        }
+    } else if (view_ == View::WIFI_LIST) {
+        wifiConnector_.loop();
+        if (M5.BtnB.wasPressed()) {
+            wifiConnector_.moveSelection(-1);
+        } else if (M5.BtnPWR.wasClicked()) {
+            wifiConnector_.moveSelection(+1);
+        } else if (M5.BtnA.wasReleased()) {
+            wifiConnector_.confirmSelection();
+        }
     } else if (view_ == View::OTA_FLOW) {
         otaUpdater_.loop();
         if (M5.BtnA.wasReleased() && otaUpdater_.state() == OtaUpdater::State::UPDATE_AVAILABLE) {
@@ -423,6 +445,9 @@ void Settings::loop() {
             } else if (selectedIndex_ == WIFI_SETUP) {
                 wifiPortal_.start();
                 view_ = View::WIFI_FLOW;
+            } else if (selectedIndex_ == WIFI_CONNECT) {
+                wifiConnector_.start();
+                view_ = View::WIFI_LIST;
             } else if (selectedIndex_ == UPDATE_CHECK) {
                 otaUpdater_.start();
                 view_ = View::OTA_FLOW;
@@ -462,11 +487,13 @@ void Settings::drawCategoryList() {
     canvas.print("SETTINGS");
 
     canvas.setTextSize(2);
+    constexpr int kCatRowPitch = 29; // tighter than before -- now 6 categories must fit above the footer
+    constexpr int kCatRowHeight = 24;
     for (int i = 0; i < kCategoryCount; ++i) {
-        int y = 32 + i * 32;
+        int y = 30 + i * kCatRowPitch;
         bool sel = (i == categoryIndex_);
         if (sel) {
-            canvas.fillRoundRect(0, y - 4, canvas.width(), 28, 3, Theme::PANEL);
+            canvas.fillRoundRect(0, y - 4, canvas.width(), kCatRowHeight, 3, Theme::PANEL);
             canvas.setTextColor(Theme::ACCENT, Theme::PANEL);
         } else {
             canvas.setTextColor(Theme::TEXT, Theme::BG);
@@ -587,7 +614,7 @@ void Settings::drawWifiSetup() {
             canvas.setTextSize(1);
             canvas.setTextColor(Theme::SUBTEXT, Theme::BG);
             canvas.setCursor(4, 100);
-            canvas.print("WiFi credentials saved.");
+            canvas.print("Credentials saved.");
             break;
         case WifiPortal::State::SAVED_FAIL:
             canvas.setTextColor(Theme::BAD, Theme::BG);
@@ -599,12 +626,12 @@ void Settings::drawWifiSetup() {
             canvas.setCursor(4, 90);
             canvas.print("Wrong password?");
             canvas.setCursor(4, 102);
-            canvas.print("Try again in the browser.");
+            canvas.print("Retry in browser.");
             break;
         default: // RUNNING
             canvas.setTextColor(Theme::TEXT, Theme::BG);
             canvas.setCursor(4, 40);
-            canvas.print("1. Connect with phone:");
+            canvas.print("1. Join this WiFi:");
             canvas.setTextColor(Theme::ACCENT, Theme::BG);
             canvas.setTextSize(2);
             canvas.setCursor(8, 54);
@@ -612,7 +639,7 @@ void Settings::drawWifiSetup() {
             canvas.setTextSize(1);
             canvas.setTextColor(Theme::TEXT, Theme::BG);
             canvas.setCursor(4, 90);
-            canvas.print("2. Open browser at:");
+            canvas.print("2. Open browser:");
             canvas.setTextColor(Theme::ACCENT, Theme::BG);
             canvas.setTextSize(2);
             canvas.setCursor(8, 104);
@@ -620,13 +647,80 @@ void Settings::drawWifiSetup() {
             canvas.setTextSize(1);
             canvas.setTextColor(Theme::SUBTEXT, Theme::BG);
             canvas.setCursor(4, 140);
-            canvas.print("(often opens automatically)");
+            canvas.print("(often automatic)");
             break;
     }
 
     canvas.setTextColor(Theme::SUBTEXT, Theme::BG);
     canvas.setCursor(4, 228);
     canvas.print("Hold A = back");
+    drawBatteryIndicator();
+    canvas.pushSprite(0, 0);
+}
+
+void Settings::drawWifiList() {
+    canvas.fillScreen(Theme::BG);
+    canvas.setTextColor(Theme::ACCENT, Theme::BG);
+    canvas.setTextSize(1);
+    canvas.setCursor(4, 2);
+    canvas.print("CONNECT TO WIFI");
+
+    int n = wifiConnector_.networkCount();
+    if (n == 0) {
+        canvas.setTextColor(Theme::TEXT, Theme::BG);
+        canvas.setCursor(4, 40);
+        canvas.print("No saved networks.");
+        canvas.setCursor(4, 54);
+        canvas.print("Use 'Set up WiFi'");
+        canvas.setCursor(4, 66);
+        canvas.print("first.");
+    } else {
+        int y = 26;
+        if (wifiConnector_.state() == WifiConnector::State::CONNECTING) {
+            canvas.setTextColor(Theme::TEXT, Theme::BG);
+            canvas.setCursor(4, y);
+            canvas.print("Connecting...");
+        } else if (wifiConnector_.errorMessage()[0] != 0) {
+            canvas.setTextColor(Theme::BAD, Theme::BG);
+            canvas.setCursor(4, y);
+            canvas.print(wifiConnector_.errorMessage());
+        }
+        y += 16;
+
+        constexpr int kMaxShownChars = 17; // keep SSID + margin within the 135px screen width
+        for (int i = 0; i < n; ++i) {
+            char ssid[WifiConfig::kMaxSsidLen + 1];
+            wifiConnector_.networkSsid(i, ssid);
+            if (strlen(ssid) > kMaxShownChars) {
+                ssid[kMaxShownChars - 3] = '.';
+                ssid[kMaxShownChars - 2] = '.';
+                ssid[kMaxShownChars - 1] = '.';
+                ssid[kMaxShownChars] = 0;
+            }
+            bool sel = (i == wifiConnector_.selectedIndex());
+            bool connected = wifiConnector_.isConnectedTo(i);
+            uint16_t fg = connected ? Theme::GOOD : (sel ? Theme::ACCENT : Theme::TEXT);
+            if (sel) {
+                canvas.fillRoundRect(0, y - 2, canvas.width(), 22, 3, Theme::PANEL);
+                canvas.setTextColor(fg, Theme::PANEL);
+            } else {
+                canvas.setTextColor(fg, Theme::BG);
+            }
+            canvas.setCursor(4, y);
+            canvas.print(ssid);
+            if (connected) {
+                canvas.setCursor(canvas.width() - 14, y);
+                canvas.print("*");
+            }
+            y += 22;
+        }
+    }
+
+    canvas.setTextColor(Theme::SUBTEXT, Theme::BG);
+    canvas.setCursor(4, 216);
+    canvas.print("B=Up PWR=Down");
+    canvas.setCursor(4, 228);
+    canvas.print("A=(dis)connect");
     drawBatteryIndicator();
     canvas.pushSprite(0, 0);
 }
@@ -639,17 +733,11 @@ void Settings::drawOtaUpdate() {
     canvas.print("UPDATE");
 
     switch (otaUpdater_.state()) {
-        case OtaUpdater::State::CONNECTING:
-            canvas.setTextColor(Theme::TEXT, Theme::BG);
-            canvas.setTextSize(2);
-            canvas.setCursor(8, 70);
-            canvas.print("Connecting...");
-            break;
         case OtaUpdater::State::CHECKING:
             canvas.setTextColor(Theme::TEXT, Theme::BG);
             canvas.setTextSize(2);
             canvas.setCursor(8, 70);
-            canvas.print("Checking...");
+            canvas.print("Checking");
             break;
         case OtaUpdater::State::UP_TO_DATE:
             canvas.setTextColor(Theme::GOOD, Theme::BG);
@@ -705,6 +793,7 @@ void Settings::draw() {
         case View::CATEGORY_LIST: drawCategoryList(); break;
         case View::FIELD_LIST: drawFieldList(); break;
         case View::WIFI_FLOW: drawWifiSetup(); break;
+        case View::WIFI_LIST: drawWifiList(); break;
         case View::OTA_FLOW: drawOtaUpdate(); break;
     }
 }

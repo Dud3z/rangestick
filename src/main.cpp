@@ -9,6 +9,7 @@
 #include "StabilityTracker.h"
 #include "ComboView.h"
 #include "Settings.h"
+#include "Version.h"
 #include <cmath>
 #include <cstring>
 
@@ -131,40 +132,49 @@ void drawIcon(int index, int cx, int cy, uint16_t color) {
     }
 }
 
-// Boot animation matching the shooting theme: a crosshair zooms outward like a scope settling
-// into focus, "fires" with a flash+beep, then RANGESTICK is "zeroed in" letter by letter -- a
-// small impact dot above each letter marks the hit.
+// Boot animation matching the shooting theme: a round arcs across the screen and hits a target,
+// leaving a fading trail, then RANGESTICK is "zeroed in" letter by letter. Silent -- no boot beep.
 void splash() {
-    constexpr int cx = 67;
-    constexpr int cy = 104;
+    constexpr int groundY = 150;
+    constexpr int startX = 8;
+    constexpr int targetX = 100;
+    constexpr int peakLift = 85; // how far above groundY the arc peaks
 
-    constexpr int kZoomSteps = 24;
-    for (int step = 0; step <= kZoomSteps; ++step) {
-        float t = static_cast<float>(step) / kZoomSteps;
-        int r = 4 + static_cast<int>(t * 70.0f);
-        float rotDeg = (1.0f - t) * 50.0f; // rotates into 0 degrees as it settles
+    constexpr int kFlightSteps = 36;
+    int trailX[kFlightSteps + 1];
+    int trailY[kFlightSteps + 1];
+    int trailCount = 0;
+
+    for (int step = 0; step <= kFlightSteps; ++step) {
+        float t = static_cast<float>(step) / kFlightSteps;
+        int x = startX + static_cast<int>(t * (targetX - startX));
+        int y = groundY - static_cast<int>(peakLift * 4.0f * t * (1.0f - t)); // parabolic arc
+
         canvas.fillScreen(Theme::BG);
-        canvas.drawCircle(cx, cy, r, Theme::ACCENT);
-        for (int a = 0; a < 360; a += 90) {
-            float rad = (a + rotDeg) * 3.14159265f / 180.0f;
-            int x0 = cx + static_cast<int>((r - 14) * cosf(rad));
-            int y0 = cy + static_cast<int>((r - 14) * sinf(rad));
-            int x1 = cx + static_cast<int>((r + 14) * cosf(rad));
-            int y1 = cy + static_cast<int>((r + 14) * sinf(rad));
-            canvas.drawLine(x0, y0, x1, y1, Theme::ACCENT);
-        }
-        canvas.pushSprite(0, 0);
-        delay(28);
-    }
-    delay(250); // linger briefly on the settled crosshair before "firing"
+        canvas.drawCircle(targetX, groundY, 14, Theme::SUBTEXT);
+        canvas.drawCircle(targetX, groundY, 7, Theme::SUBTEXT);
 
-    M5.Speaker.begin();
-    M5.Speaker.setVolume(AppSettings::buzzerVolume);
-    M5.Speaker.tone(2600, 80);
-    canvas.fillScreen(Theme::ACCENT2);
-    canvas.pushSprite(0, 0);
-    delay(100);
-    M5.Speaker.end();
+        trailX[trailCount] = x;
+        trailY[trailCount] = y;
+        ++trailCount;
+        for (int i = 0; i < trailCount - 1; ++i) {
+            canvas.fillCircle(trailX[i], trailY[i], 1, Theme::SUBTEXT);
+        }
+        canvas.fillCircle(x, y, 3, Theme::ACCENT);
+
+        canvas.pushSprite(0, 0);
+        delay(16);
+    }
+
+    // Silent impact burst -- an expanding ring instead of the old flash+beep.
+    for (int r = 2; r <= 32; r += 5) {
+        canvas.fillScreen(Theme::BG);
+        canvas.fillCircle(targetX, groundY, 7, Theme::ACCENT2);
+        canvas.drawCircle(targetX, groundY, r, Theme::ACCENT2);
+        canvas.pushSprite(0, 0);
+        delay(22);
+    }
+    delay(150);
     canvas.fillScreen(Theme::BG);
     canvas.pushSprite(0, 0);
     delay(120);
@@ -186,13 +196,11 @@ void splash() {
             canvas.setTextColor(Theme::ACCENT, Theme::BG);
             canvas.setCursor(x1 + static_cast<int>(i) * kCharW, y1);
             canvas.print(line1[i]);
-            canvas.fillCircle(x1 + static_cast<int>(i) * kCharW + 8, y1 - 6, 2, Theme::ACCENT2);
         }
         if (i < len2) {
             canvas.setTextColor(Theme::ACCENT, Theme::BG);
             canvas.setCursor(x2 + static_cast<int>(i) * kCharW, y2);
             canvas.print(line2[i]);
-            canvas.fillCircle(x2 + static_cast<int>(i) * kCharW + 8, y2 - 6, 2, Theme::ACCENT2);
         }
         canvas.pushSprite(0, 0);
         delay(90);
@@ -201,8 +209,11 @@ void splash() {
 
     canvas.setTextColor(Theme::SUBTEXT, Theme::BG);
     canvas.setTextSize(1);
-    canvas.setCursor(35, 200);
-    canvas.print("shooting buddy");
+    char verBuf[16];
+    snprintf(verBuf, sizeof(verBuf), "v%s", Version::FW_VERSION);
+    int vw = canvas.textWidth(verBuf);
+    canvas.setCursor((canvas.width() - vw) / 2, 200);
+    canvas.print(verBuf);
     canvas.pushSprite(0, 0);
     delay(700);
 }
@@ -213,9 +224,6 @@ void drawMenu() {
     canvas.setTextColor(Theme::ACCENT, Theme::BG);
     canvas.setCursor(4, 4);
     canvas.print("RANGESTICK");
-    canvas.setTextColor(Theme::SUBTEXT, Theme::BG);
-    canvas.setCursor(4, 16);
-    canvas.print("select [A]");
 
     // Animated selection bar, glides to the target row instead of jumping.
     canvas.fillRoundRect(2, static_cast<int>(selAnimY) - 8, canvas.width() - 4, 30, 4, Theme::PANEL);
@@ -237,11 +245,6 @@ void drawMenu() {
         canvas.print(kModules[i]->name());
     }
 
-    canvas.setTextColor(Theme::SUBTEXT, Theme::BG);
-    canvas.setCursor(4, 210);
-    canvas.print("B=Up PWR=Down");
-    canvas.setCursor(4, 224);
-    canvas.print("A = select");
     drawBatteryIndicator();
     canvas.pushSprite(0, 0);
 }

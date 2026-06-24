@@ -4,7 +4,6 @@
 #include <HTTPClient.h>
 #include <Update.h>
 #include <cstring>
-#include "WifiConfig.h"
 #include "Version.h"
 #include "Canvas.h"
 #include "Theme.h"
@@ -54,7 +53,7 @@ void OtaUpdater::checkVersion() {
     client.setInsecure(); // deliberate trade-off, see header comment
     HTTPClient http;
     if (!http.begin(client, otaUrl("version.txt"))) {
-        setError("Connection to GitHub failed");
+        setError("Can't reach GitHub");
         return;
     }
     int code = http.GET();
@@ -70,7 +69,7 @@ void OtaUpdater::checkVersion() {
     body.trim();
 
     if (body.length() == 0) {
-        setError("Received empty version");
+        setError("No version data");
         return;
     }
     strncpy(remoteVersion_, body.c_str(), sizeof(remoteVersion_) - 1);
@@ -83,7 +82,7 @@ void OtaUpdater::runDownload() {
     client.setInsecure();
     HTTPClient http;
     if (!http.begin(client, otaUrl("firmware.bin"))) {
-        setError("Download fehlgeschlagen");
+        setError("Download failed");
         return;
     }
     int code = http.GET();
@@ -123,7 +122,7 @@ void OtaUpdater::runDownload() {
             lastShownPct = pct;
             char line[16];
             snprintf(line, sizeof(line), "%d%%", pct);
-            drawMessage("Downloading...", line);
+            drawMessage("Loading", line);
         }
     }
     http.end();
@@ -135,7 +134,7 @@ void OtaUpdater::runDownload() {
     }
 
     state_ = State::DONE;
-    drawMessage("Done!", "Rebooting...");
+    drawMessage("Done!", "Rebooting");
     delay(1200);
     ESP.restart();
 }
@@ -144,28 +143,16 @@ void OtaUpdater::start() {
     errorMsg_[0] = 0;
     remoteVersion_[0] = 0;
 
-    if (!WifiConfig::hasCredentials()) {
-        setError("No WiFi credentials");
+    if (WiFi.status() != WL_CONNECTED) {
+        setError("Connect via Network menu");
         return;
     }
-    char ssid[WifiConfig::kMaxSsidLen + 1];
-    char pass[WifiConfig::kMaxPasswordLen + 1];
-    WifiConfig::load(ssid, pass);
-
-    WiFi.mode(WIFI_STA);
-    WiFi.begin(ssid, pass);
-    connectStartMs_ = millis();
-    state_ = State::CONNECTING;
-    drawMessage("Connecting...", nullptr);
+    checkVersion();
 }
 
 void OtaUpdater::loop() {
-    if (state_ != State::CONNECTING) return;
-    if (WiFi.status() == WL_CONNECTED) {
-        checkVersion();
-    } else if (millis() - connectStartMs_ > kConnectTimeoutMs) {
-        setError("WiFi connection failed");
-    }
+    // Nothing to poll -- start()/confirm() run their work synchronously since a connection is
+    // already required up front.
 }
 
 void OtaUpdater::confirm() {
@@ -175,8 +162,5 @@ void OtaUpdater::confirm() {
 }
 
 void OtaUpdater::stop() {
-    if (state_ == State::IDLE) return;
-    WiFi.disconnect();
-    WiFi.mode(WIFI_OFF);
     state_ = State::IDLE;
 }

@@ -2,6 +2,7 @@
 
 #include "AppModule.h"
 #include "WifiPortal.h"
+#include "WifiConnector.h"
 #include "OtaUpdater.h"
 #include <cstddef>
 #include <cstdint>
@@ -55,12 +56,13 @@ private:
         IMU_POLL_DELAY,
         BATT_READ_INTERVAL,
         WIFI_SETUP,
+        WIFI_CONNECT,
         UPDATE_CHECK,
         RESET_DEFAULTS,
         SETTING_COUNT
     };
 
-    enum class View { CATEGORY_LIST, FIELD_LIST, WIFI_FLOW, OTA_FLOW };
+    enum class View { CATEGORY_LIST, FIELD_LIST, WIFI_FLOW, WIFI_LIST, OTA_FLOW };
 
     View view_ = View::CATEGORY_LIST;
     int categoryIndex_ = 0;
@@ -79,9 +81,11 @@ private:
     void drawCategoryList();
     void drawFieldList();
     void drawWifiSetup();
+    void drawWifiList();
     void drawOtaUpdate();
     void draw();
 
     WifiPortal wifiPortal_;
+    WifiConnector wifiConnector_;
     OtaUpdater otaUpdater_;
 };
