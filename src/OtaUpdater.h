@@ -2,21 +2,22 @@
 
 #include <cstdint>
 
-// OTA-Update-Check + Download/Flash gegen das in Version.h konfigurierte GitHub-Repo. Liest
-// ota/version.txt per HTTPS (raw.githubusercontent.com), vergleicht mit Version::FW_VERSION,
-// laedt bei Unterschied ota/firmware.bin direkt in die naechste OTA-Partition (Update.h) und
-// startet neu. TLS-Zertifikatspruefung ist bewusst per setInsecure() deaktiviert -- akzeptierter
-// Trade-off fuer ein privates Geraet, das nur das eigene Repo abruft (siehe Settings/Plan).
-// Download+Flash laufen -- wie main.cpp's splash() -- als blockierende Funktion mit eigenem
-// Progress-Draw direkt auf canvas/pushSprite, da die App ohnehin single-threaded/synchron ist.
+// OTA update check + download/flash against the GitHub repo configured in Version.h. Reads
+// ota/version.txt over HTTPS (raw.githubusercontent.com), compares it to Version::FW_VERSION,
+// and on a mismatch downloads ota/firmware.bin straight into the next OTA partition (Update.h)
+// and reboots. TLS certificate verification is deliberately disabled via setInsecure() --
+// an accepted trade-off for a private device that only ever talks to its own repo (see
+// Settings/plan). Download+flash run -- like main.cpp's splash() -- as a blocking function with
+// its own progress draw directly on canvas/pushSprite, since the app is single-threaded/
+// synchronous anyway.
 class OtaUpdater {
 public:
     enum class State { IDLE, CONNECTING, CHECKING, UP_TO_DATE, UPDATE_AVAILABLE, DOWNLOADING, DONE, ERROR };
 
-    void start();   // verbindet per WifiConfig-Zugangsdaten, prueft danach auf neue Version
-    void loop();    // muss waehrend CONNECTING regelmaessig aufgerufen werden
-    void confirm(); // im Zustand UPDATE_AVAILABLE: Download+Flash anstossen
-    void stop();    // bricht ab / WLAN wieder aus (z.B. bei Lang-Druck zurueck)
+    void start();   // connects using WifiConfig credentials, then checks for a new version
+    void loop();    // must be called regularly during CONNECTING
+    void confirm(); // in state UPDATE_AVAILABLE: kick off download+flash
+    void stop();    // cancel / WiFi off again (e.g. on long-press back)
 
     State state() const { return state_; }
     const char* remoteVersion() const { return remoteVersion_; }

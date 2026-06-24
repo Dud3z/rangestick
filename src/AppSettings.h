@@ -2,56 +2,56 @@
 
 #include <cstdint>
 
-// Zentrale, in NVS persistierte Konfiguration. Werte liegen hier bereits aufgeloest
-// (z.B. Millisekunden, Helligkeit 0-255), nicht als Indizes -- das Settings-Modul kennt
-// die diskreten Options-Listen und schreibt direkt den gewaehlten Wert hierher.
+// Central configuration persisted in NVS. Values here are already resolved (e.g. milliseconds,
+// brightness 0-255), not stored as indices -- the Settings module knows the discrete option
+// lists and writes the chosen value directly here.
 namespace AppSettings {
 
 constexpr uint32_t kTimeoutNever = 0xFFFFFFFFu;
 
 extern uint8_t brightnessActive;   // 0-255
 extern uint8_t brightnessDim;      // 0-255
-extern uint32_t dimTimeoutMs;      // kTimeoutNever = nie dimmen
-extern uint32_t sleepTimeoutMs;    // kTimeoutNever = nie ausschalten
-extern bool screenFlipped;         // false = Rotation 0, true = Rotation 2 (180 Grad)
-extern int accentColorIndex;       // Index in kAccentPalette (siehe AppSettings.cpp)
+extern uint32_t dimTimeoutMs;      // kTimeoutNever = never dim
+extern uint32_t sleepTimeoutMs;    // kTimeoutNever = never turn off
+extern bool screenFlipped;         // false = rotation 0, true = rotation 2 (180 degrees)
+extern int accentColorIndex;       // index into kAccentPalette (see AppSettings.cpp)
 
-extern int16_t shotThreshold;      // Mikrofon-Peak-Schwelle (0..32767) -- direkt als Zahl editierbar
+extern int16_t shotThreshold;      // microphone peak threshold (0..32767) -- directly editable as a number
 extern float shotDelayMinS;
 extern float shotDelayMaxS;
-extern uint8_t buzzerVolume;       // 0-255, 0 = stumm
-extern uint32_t shotEchoLockoutMs; // Mindestabstand zwischen zwei erkannten Schuessen
-extern float shotEchoRatio;        // Mindest-Lautstaerke (relativ zum letzten Schuss) im weichen Echo-Fenster
-extern bool shotSpectralEnabled;   // Frequenzanalyse nutzen, um Klicks/Tastendruecke von Schuessen zu unterscheiden
-extern float shotSpectralRatio;    // Mindest-Anteil hochfrequenter Energie, um als "schussartig" zu gelten
+extern uint8_t buzzerVolume;       // 0-255, 0 = mute
+extern uint32_t shotEchoLockoutMs; // minimum gap between two detected shots
+extern float shotEchoRatio;        // minimum loudness (relative to the last shot) within the soft echo window
+extern bool shotSpectralEnabled;   // use frequency analysis to tell clicks/button presses apart from shots
+extern float shotSpectralRatio;    // minimum fraction of high-frequency energy to count as "shot-like"
 
-extern int shotDetectMode;            // 0 = Mikrofon, 1 = Rueckstoss (IMU-Beschleunigungsspitze)
-extern int16_t recoilThresholdMilliG; // Peak-Ausschlag der Gesamtbeschleunigung ueber 1g, in milli-g
-extern uint32_t recoilLockoutMs;      // Mindestabstand zwischen zwei erkannten Schuessen (Nachschwingen unterdruecken)
-extern float recoilRatio;             // Mindest-Ausschlag (relativ zum letzten Schuss) im weichen Nachschwing-Fenster
-extern bool recoilSharpnessEnabled;   // Anstiegsgeschwindigkeit pruefen, um Stoesse/Wackeln von echtem Rueckstoss zu unterscheiden
-extern float recoilSharpness;         // Mindest-Schaerfe (0..1) des Anstiegs, um als Rueckstoss zu gelten
+extern int shotDetectMode;            // 0 = microphone, 1 = recoil (IMU acceleration spike)
+extern int16_t recoilThresholdMilliG; // peak deviation of total acceleration above 1g, in milli-g
+extern uint32_t recoilLockoutMs;      // minimum gap between two detected shots (suppresses recoil settling)
+extern float recoilRatio;             // minimum deviation (relative to the last shot) within the soft settling window
+extern bool recoilSharpnessEnabled;   // check rise speed to tell bumps/shake apart from a real recoil impulse
+extern float recoilSharpness;         // minimum sharpness (0..1) of the rise to count as recoil
 
 extern float cantGreenDeg;
 extern float cantYellowDeg;
-extern float cantCalibCountdownS; // Sekunden Countdown nach "Bestaetigen" vor der Referenz-Messung (0 = aus)
+extern float cantCalibCountdownS; // seconds of countdown after "confirm" before the reference measurement (0 = off)
 
 extern float stabilityGreenMoa;
 extern float stabilityYellowMoa;
 extern float stabilityGraphMaxMoa;
-extern float stabilityDeadzoneMoa; // unter dieser Schwelle gilt die Anzeige als "0" (Ruhezustand)
+extern float stabilityDeadzoneMoa; // below this threshold the reading counts as "0" (at rest)
 
-extern uint16_t cpuFreqMhz;        // CPU-Taktrate (80/160/240) -- niedriger = weniger Verbrauch bei gleicher APB-Taktung
-extern uint16_t imuPollDelayMs;    // Pause je Durchlauf in den IMU-Live-Loops, damit die CPU zwischendurch idlen kann
-extern uint16_t battReadIntervalMs; // Mindestabstand zwischen zwei Akkustand-Abfragen am PMIC (0 = bei jedem Redraw)
+extern uint16_t cpuFreqMhz;        // CPU clock rate (80/160/240) -- lower = less power at the same APB clock
+extern uint16_t imuPollDelayMs;    // pause per iteration in the IMU live loops, so the CPU can idle in between
+extern uint16_t battReadIntervalMs; // minimum gap between two battery-level reads from the PMIC (0 = every redraw)
 
 constexpr int kAccentPaletteCount = 8;
 uint16_t accentColor(int index);
 
-void load();           // aus NVS laden (Default falls nicht vorhanden)
-void save();           // aktuelle Werte in NVS schreiben
-void resetDefaults();  // RAM-Werte auf Standard zuruecksetzen (noch nicht gespeichert)
-void applyDisplay();   // Helligkeit/Rotation/Akzentfarbe sofort wirksam machen
-void applyCpuFreq();   // CPU-Taktrate sofort wirksam machen
+void load();           // load from NVS (default if not present)
+void save();           // write current values to NVS
+void resetDefaults();  // reset RAM values to defaults (not yet saved)
+void applyDisplay();   // apply brightness/rotation/accent color immediately
+void applyCpuFreq();   // apply CPU clock rate immediately
 
 } // namespace AppSettings

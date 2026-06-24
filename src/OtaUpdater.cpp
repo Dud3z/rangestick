@@ -48,19 +48,19 @@ void OtaUpdater::setError(const char* msg) {
 
 void OtaUpdater::checkVersion() {
     state_ = State::CHECKING;
-    drawMessage("Pruefe", "Version...");
+    drawMessage("Checking", "version...");
 
     WiFiClientSecure client;
-    client.setInsecure(); // bewusster Trade-off, siehe Header-Kommentar
+    client.setInsecure(); // deliberate trade-off, see header comment
     HTTPClient http;
     if (!http.begin(client, otaUrl("version.txt"))) {
-        setError("Verbindung zu GitHub");
+        setError("Connection to GitHub failed");
         return;
     }
     int code = http.GET();
     if (code != 200) {
         char buf[48];
-        snprintf(buf, sizeof(buf), "HTTP-Fehler %d", code);
+        snprintf(buf, sizeof(buf), "HTTP error %d", code);
         http.end();
         setError(buf);
         return;
@@ -70,7 +70,7 @@ void OtaUpdater::checkVersion() {
     body.trim();
 
     if (body.length() == 0) {
-        setError("Leere Version erhalten");
+        setError("Received empty version");
         return;
     }
     strncpy(remoteVersion_, body.c_str(), sizeof(remoteVersion_) - 1);
@@ -90,7 +90,7 @@ void OtaUpdater::runDownload() {
     int total = http.getSize();
     if (code != 200 || total <= 0) {
         char buf[48];
-        snprintf(buf, sizeof(buf), "HTTP-Fehler %d", code);
+        snprintf(buf, sizeof(buf), "HTTP error %d", code);
         http.end();
         setError(buf);
         return;
@@ -98,7 +98,7 @@ void OtaUpdater::runDownload() {
 
     if (!Update.begin(static_cast<size_t>(total))) {
         http.end();
-        setError("Zu wenig Platz");
+        setError("Not enough space");
         return;
     }
 
@@ -123,19 +123,19 @@ void OtaUpdater::runDownload() {
             lastShownPct = pct;
             char line[16];
             snprintf(line, sizeof(line), "%d%%", pct);
-            drawMessage("Lade Update...", line);
+            drawMessage("Downloading...", line);
         }
     }
     http.end();
 
     if (written != total || !Update.end() || !Update.isFinished()) {
         Update.abort();
-        setError("Update fehlgeschlagen");
+        setError("Update failed");
         return;
     }
 
     state_ = State::DONE;
-    drawMessage("Fertig!", "Neustart...");
+    drawMessage("Done!", "Rebooting...");
     delay(1200);
     ESP.restart();
 }
@@ -145,7 +145,7 @@ void OtaUpdater::start() {
     remoteVersion_[0] = 0;
 
     if (!WifiConfig::hasCredentials()) {
-        setError("Keine WLAN-Daten");
+        setError("No WiFi credentials");
         return;
     }
     char ssid[WifiConfig::kMaxSsidLen + 1];
@@ -156,7 +156,7 @@ void OtaUpdater::start() {
     WiFi.begin(ssid, pass);
     connectStartMs_ = millis();
     state_ = State::CONNECTING;
-    drawMessage("Verbinde...", nullptr);
+    drawMessage("Connecting...", nullptr);
 }
 
 void OtaUpdater::loop() {
@@ -164,7 +164,7 @@ void OtaUpdater::loop() {
     if (WiFi.status() == WL_CONNECTED) {
         checkVersion();
     } else if (millis() - connectStartMs_ > kConnectTimeoutMs) {
-        setError("WLAN fehlgeschlagen");
+        setError("WiFi connection failed");
     }
 }
 

@@ -31,7 +31,7 @@ void CantCalculator::update(float ax, float ay, float az, float gx, float gy, fl
 
     if (state_ == State::LEVEL_COUNTDOWN) {
         if (millis() - countdownStartMs_ >= countdownDurationMs_) {
-            captureLevelRef(); // Countdown abgelaufen -> jetzige (hoffentlich ruhige) Lage uebernehmen
+            captureLevelRef(); // countdown elapsed -> adopt the current (hopefully steady) pose
         }
     } else if (state_ == State::ROCK_GESTURE) {
         gyroAccum_[0] += fabsf(gx);
@@ -50,24 +50,24 @@ void CantCalculator::confirm() {
     if (state_ == State::LEVEL_REF) {
         uint32_t ms = static_cast<uint32_t>(AppSettings::cantCalibCountdownS * 1000.0f);
         if (ms == 0) {
-            captureLevelRef(); // Countdown deaktiviert -> sofort wie bisher
+            captureLevelRef(); // countdown disabled -> immediately as before
         } else {
             countdownDurationMs_ = ms;
             countdownStartMs_ = millis();
             state_ = State::LEVEL_COUNTDOWN;
         }
     } else if (state_ == State::ROCK_GESTURE) {
-        // Schritt 2: Rohrachse = die Achse, um die beim Kippen tatsaechlich gedreht wurde.
+        // Step 2: bore axis = the axis that was actually rotated around during the tilt.
         boreAxis_ = 0;
         if (gyroAccum_[1] > gyroAccum_[boreAxis_]) boreAxis_ = 1;
         if (gyroAccum_[2] > gyroAccum_[boreAxis_]) boreAxis_ = 2;
         refAngleDeg_ = rollDegFor(refGravity_);
         state_ = State::READY;
     } else if (state_ == State::READY) {
-        state_ = State::LEVEL_REF; // neu kalibrieren
+        state_ = State::LEVEL_REF; // recalibrate
     }
-    // State::LEVEL_COUNTDOWN: Tastendruck waehrend des Countdowns wird ignoriert -- der Nutzer
-    // soll nach dem ersten Druck gerade nichts mehr anfassen muessen.
+    // State::LEVEL_COUNTDOWN: a button press during the countdown is ignored -- after the first
+    // press the user shouldn't have to touch anything else.
 }
 
 void CantCalculator::recalibrate() {

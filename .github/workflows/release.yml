@@ -24,16 +24,16 @@ jobs:
 
       - run: pio run
 
-      - name: Stage OTA-Dateien
+      - name: Stage OTA files
         run: |
           mkdir -p ota
           cp .pio/build/m5stack-c/firmware.bin ota/firmware.bin
           echo "${GITHUB_REF_NAME#v}" > ota/version.txt
 
-      - name: Commit + Push nach main
+      - name: Commit + push to main
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add ota/firmware.bin ota/version.txt
-          git commit -m "Release ${GITHUB_REF_NAME}" || echo "Keine Aenderungen"
+          git commit -m "Release ${GITHUB_REF_NAME}" || echo "No changes"
           git push origin HEAD:main

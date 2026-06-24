@@ -1,9 +1,9 @@
 #pragma once
 
-// Firmware-Version + GitHub-Repo-Koordinaten fuer den OTA-Update-Check (siehe OtaUpdater).
-// Bei jedem Release: FW_VERSION hier UND der Git-Tag (z.B. "v1.0.1") muessen uebereinstimmen --
-// die GitHub Action schreibt den Tag-Namen (ohne fuehrendes "v") nach ota/version.txt, womit
-// der Stick per Stringvergleich gegen FW_VERSION erkennt, ob eine neue Version vorliegt.
+// Firmware version + GitHub repo coordinates for the OTA update check (see OtaUpdater).
+// For every release: FW_VERSION here AND the git tag (e.g. "v1.0.1") must match -- the GitHub
+// Action writes the tag name (without the leading "v") to ota/version.txt, which is how the
+// stick detects via string comparison against FW_VERSION whether a new version is available.
 namespace Version {
 constexpr const char* FW_VERSION = "1.0.0";
 

@@ -30,9 +30,9 @@ float ShotTimer::computeSpectralRatio() const {
     fft.compute(FFTDirection::Forward);
     fft.complexToMagnitude();
 
-    // 16kHz / 128 Samples = 125 Hz pro Bin. Bin 0 (Gleichanteil) wird ausgelassen, Bin 8 (~1kHz)
-    // trennt "tief" von "hoch". Ein Schuss ist breitbandig -- viel Energie auch oberhalb 1kHz;
-    // ein kurzer Klick/Tastendruck ist meist eng/tieffrequent.
+    // 16kHz / 128 samples = 125 Hz per bin. Bin 0 (DC component) is skipped, bin 8 (~1kHz)
+    // separates "low" from "high". A shot is acoustically broadband -- plenty of energy above
+    // 1kHz too; a short click/button press is usually narrow/low-frequency.
     constexpr int kSplitBin = 8;
     constexpr int kHighBandEnd = MIC_SAMPLES / 2;
     float lowEnergy = 0.0f, highEnergy = 0.0f;
@@ -45,9 +45,9 @@ float ShotTimer::computeSpectralRatio() const {
 }
 
 float ShotTimer::computeRecoilSharpness() const {
-    // Wie schnell ist das Signal auf den (gerade erst geschriebenen) Peak angestiegen? Ein
-    // echter Rueckstossimpuls braucht dafuer nur 1-2 Samples, ein Stoss/Wackeln baut sich ueber
-    // mehr Samples gleichmaessig auf. 1.0 = Sprung von ~0 auf den Peak, 0.0 = kein Unterschied.
+    // How quickly did the signal rise to the (just-written) peak? A real recoil impulse only
+    // takes 1-2 samples for that, a bump/shake builds up evenly over more samples. 1.0 = jump
+    // from ~0 to the peak, 0.0 = no difference.
     int peakIdx = (recoilBufIdx_ - 1 + RECOIL_BUF_SIZE) % RECOIL_BUF_SIZE;
     float peak = recoilBuf_[peakIdx];
     if (peak < 0.05f) return 0.0f;
@@ -94,7 +94,7 @@ void ShotTimer::startDelay() {
 }
 
 void ShotTimer::playBeepAndArm() {
-    // Lautsprecher und Mikrofon teilen sich den I2S-Bus -> nacheinander umschalten.
+    // Speaker and microphone share the I2S bus -> switch between them sequentially.
     if (M5.Mic.isEnabled()) {
         M5.Mic.end();
     }
@@ -111,7 +111,7 @@ void ShotTimer::playBeepAndArm() {
         M5.Mic.begin();
     } else {
         recoilBufIdx_ = 0;
-        for (auto& v : recoilBuf_) v = 0.0f; // alte Auschlaege duerfen nicht als Anstieg gelten
+        for (auto& v : recoilBuf_) v = 0.0f; // old deflections must not count as a rise
     }
 
     beepMs_ = millis();
@@ -122,7 +122,7 @@ void ShotTimer::playBeepAndArm() {
 }
 
 void ShotTimer::armForLearning() {
-    // Wie playBeepAndArm(), nur ohne Beep -- fuer den Lernmodus, der keine Zeit stoppt.
+    // Like playBeepAndArm(), just without the beep -- for learn mode, which doesn't time anything.
     if (AppSettings::shotDetectMode == 0) {
         if (M5.Mic.isEnabled()) {
             M5.Mic.end();
@@ -152,7 +152,7 @@ void ShotTimer::pollMic() {
     if (peak <= threshold()) return;
 
     if (AppSettings::shotSpectralEnabled && computeSpectralRatio() < AppSettings::shotSpectralRatio) {
-        return; // laut genug, aber klingt nicht breitbandig genug fuer einen Schuss (z.B. Klick)
+        return; // loud enough, but doesn't sound broadband enough for a shot (e.g. a click)
     }
 
     uint32_t elapsed = millis() - beepMs_;
@@ -161,10 +161,10 @@ void ShotTimer::pollMic() {
     if (shotCount_ > 0) {
         uint32_t sinceLast = elapsed - lastShotElapsed_;
         uint32_t lockoutMs = AppSettings::shotEchoLockoutMs;
-        if (sinceLast <= lockoutMs) return; // hartes Sperrfenster, garantiert dieselbe Schallwelle
+        if (sinceLast <= lockoutMs) return; // hard lockout window, guaranteed to be the same sound wave
         if (sinceLast <= lockoutMs * ECHO_WINDOW_MULTIPLIER) {
-            // Weiches Fenster: Wandecho ist durch die Reflexion leiser als der Originalknall --
-            // nur akzeptieren, wenn fast so laut wie der vorherige (echte) Schuss.
+            // Soft window: a room echo is quieter than the original bang due to the reflection --
+            // only accept it if it's nearly as loud as the previous (real) shot.
             if (peak < static_cast<int16_t>(lastShotPeak_ * AppSettings::shotEchoRatio)) return;
         }
     }
@@ -176,8 +176,8 @@ void ShotTimer::pollMic() {
 }
 
 void ShotTimer::pollRecoil() {
-    // Pause bleibt klein genug, um die deutlich langsamere IMU-Abtastrate nicht zu unterschreiten --
-    // spart Busy-Spin-CPU-Zyklen ohne die Schusserkennung zu verzoegern.
+    // The pause stays small enough not to undercut the much slower IMU sample rate -- saves
+    // busy-spin CPU cycles without delaying shot detection.
     delay(AppSettings::imuPollDelayMs);
     if (!M5.Imu.update()) return;
     auto d = M5.Imu.getImuData();
@@ -191,7 +191,7 @@ void ShotTimer::pollRecoil() {
     if (peak <= recoilThreshold()) return;
 
     if (AppSettings::recoilSharpnessEnabled && computeRecoilSharpness() < AppSettings::recoilSharpness) {
-        return; // starker Ausschlag, aber zu langsamer Anstieg fuer einen echten Rueckstossimpuls
+        return; // strong deflection, but too slow a rise for a real recoil impulse
     }
 
     uint32_t elapsed = millis() - beepMs_;
@@ -200,10 +200,10 @@ void ShotTimer::pollRecoil() {
     if (shotCount_ > 0) {
         uint32_t sinceLast = elapsed - lastShotElapsed_;
         uint32_t lockoutMs = AppSettings::recoilLockoutMs;
-        if (sinceLast <= lockoutMs) return; // hartes Sperrfenster, garantiert dasselbe Nachschwingen
+        if (sinceLast <= lockoutMs) return; // hard lockout window, guaranteed to be the same settling event
         if (sinceLast <= lockoutMs * ECHO_WINDOW_MULTIPLIER) {
-            // Weiches Fenster: das mechanische Nachschwingen/Setzen ist schwaecher als der
-            // urspruengliche Rueckstoss -- nur akzeptieren, wenn fast so stark wie der vorherige Schuss.
+            // Soft window: the mechanical settling/recoil is weaker than the original recoil --
+            // only accept it if it's nearly as strong as the previous shot.
             if (peak < static_cast<int16_t>(lastShotPeak_ * AppSettings::recoilRatio)) return;
         }
     }
@@ -216,16 +216,16 @@ void ShotTimer::pollRecoil() {
 
 void ShotTimer::registerLearnSample(int16_t peak, float discriminator) {
     uint32_t now = millis();
-    if (now - learnLastPeakMs_ < LEARN_MIN_GAP_MS) return; // Entprellen
+    if (now - learnLastPeakMs_ < LEARN_MIN_GAP_MS) return; // debounce
     learnLastPeakMs_ = now;
 
     bool startNew = !learnCapturing_;
     if (learnCapturing_ && (now - learnPrimaryMs_) > LEARN_WINDOW_MS) {
-        startNew = true; // Aufnahmefenster des vorherigen Schusses ist vorbei -> das ist ein neuer
+        startNew = true; // the previous shot's capture window is over -> this is a new one
     }
 
     if (startNew) {
-        if (learnedShotCount_ >= LEARN_MAX_SHOTS) return; // genug Daten, weitere Schuesse ignorieren
+        if (learnedShotCount_ >= LEARN_MAX_SHOTS) return; // enough data, ignore further shots
         LearnedShot& shot = learnedShots_[learnedShotCount_++];
         shot.primaryPeak = peak;
         shot.primaryDiscriminator = discriminator;
@@ -275,9 +275,9 @@ void ShotTimer::pollLearn() {
 void ShotTimer::finishLearning() {
     disarmMic();
 
-    // Ueber alle aufgezeichneten Schuesse: wie spaet und wie stark ist der schlimmste
-    // Nachschwinger? Sperrfenster und Verhaeltnis werden so vorgeschlagen, dass genau dieser
-    // schlimmste Fall noch unterdrueckt wuerde, mit etwas Sicherheitsabstand.
+    // Across all recorded shots: how late and how strong is the worst settling event? Lockout
+    // window and ratio are suggested such that this exact worst case would still be suppressed,
+    // with a bit of safety margin.
     uint32_t maxEchoTimeMs = 0;
     float maxEchoRatio = 0.0f;
     int16_t minPrimaryPeak = 32767;
@@ -289,7 +289,7 @@ void ShotTimer::finishLearning() {
         if (shot.primaryDiscriminator < minDiscriminator) minDiscriminator = shot.primaryDiscriminator;
         for (int j = 0; j < shot.secondaryCount; ++j) {
             float ratio = static_cast<float>(shot.secondaryPeak[j]) / static_cast<float>(shot.primaryPeak);
-            if (ratio > 0.15f) { // sehr schwache Ausschlaege fuer die Analyse ignorieren
+            if (ratio > 0.15f) { // ignore very weak deflections for the analysis
                 if (shot.secondaryTimeMs[j] > maxEchoTimeMs) maxEchoTimeMs = shot.secondaryTimeMs[j];
                 if (ratio > maxEchoRatio) maxEchoRatio = ratio;
             }
@@ -307,8 +307,8 @@ void ShotTimer::finishLearning() {
     int16_t suggestThreshold;
     float suggestDiscriminator;
     if (AppSettings::shotDetectMode == 0) {
-        // Schwelle: deutlich unter dem leisesten aufgezeichneten Schuss ansetzen, damit auch
-        // etwas leisere Folgeschuesse noch sicher erkannt werden.
+        // Threshold: set clearly below the quietest recorded shot, so slightly quieter follow-up
+        // shots are still reliably detected.
         suggestThreshold = AppSettings::shotThreshold;
         if (minPrimaryPeak < 32767) {
             int v = static_cast<int>(minPrimaryPeak * 0.6f);
@@ -346,8 +346,8 @@ void ShotTimer::finishLearning() {
 void ShotTimer::loop() {
     switch (state_) {
         case State::IDLE:
-            // B lang = Erkennungsmodus wechseln (einmalig pro Druck); nur wenn das nicht
-            // ausgeloest wurde, zaehlt die Tasten-Loslass-Aktion als "Schwelle hoch".
+            // Long B = switch detection mode (once per press); only if that wasn't triggered does
+            // the button-release action count as "threshold up".
             if (M5.BtnB.pressedFor(600) && !modeToggleFired_) {
                 modeToggleFired_ = true;
                 AppSettings::shotDetectMode = 1 - AppSettings::shotDetectMode;
@@ -358,11 +358,11 @@ void ShotTimer::loop() {
             } else if (M5.BtnB.wasReleased()) {
                 if (!modeToggleFired_) {
                     if (AppSettings::shotDetectMode == 0) {
-                        int v = AppSettings::shotThreshold + kThresholdStep; // Hoch
+                        int v = AppSettings::shotThreshold + kThresholdStep; // up
                         if (v > kThresholdMax) v = kThresholdMax;
                         AppSettings::shotThreshold = static_cast<int16_t>(v);
                     } else {
-                        int v = AppSettings::recoilThresholdMilliG + kRecoilStep; // Hoch
+                        int v = AppSettings::recoilThresholdMilliG + kRecoilStep; // up
                         if (v > kRecoilMax) v = kRecoilMax;
                         AppSettings::recoilThresholdMilliG = static_cast<int16_t>(v);
                     }
@@ -371,11 +371,11 @@ void ShotTimer::loop() {
                 modeToggleFired_ = false;
             } else if (M5.BtnPWR.wasClicked()) {
                 if (AppSettings::shotDetectMode == 0) {
-                    int v = AppSettings::shotThreshold - kThresholdStep; // Runter
+                    int v = AppSettings::shotThreshold - kThresholdStep; // down
                     if (v < kThresholdMin) v = kThresholdMin;
                     AppSettings::shotThreshold = static_cast<int16_t>(v);
                 } else {
-                    int v = AppSettings::recoilThresholdMilliG - kRecoilStep; // Runter
+                    int v = AppSettings::recoilThresholdMilliG - kRecoilStep; // down
                     if (v < kRecoilMin) v = kRecoilMin;
                     AppSettings::recoilThresholdMilliG = static_cast<int16_t>(v);
                 }
@@ -398,8 +398,8 @@ void ShotTimer::loop() {
         case State::RUNNING:
             if (AppSettings::shotDetectMode == 0) pollMic(); else pollRecoil();
             if (M5.BtnA.wasReleased()) {
-                // Interessiert die Zeit des letzten Schusses, nicht den Moment des Knopfdrucks
-                // (der durch Reaktionszeit immer etwas spaeter liegt).
+                // We care about the time of the last shot, not the moment of the button press
+                // (which is always somewhat later due to reaction time).
                 stopElapsed_ = (shotCount_ > 0) ? shotTimes_[shotCount_ - 1] : (millis() - beepMs_);
                 state_ = State::STOPPED;
                 listScroll_ = 0;
@@ -412,9 +412,9 @@ void ShotTimer::loop() {
             if (M5.BtnA.wasReleased()) {
                 startDelay();
             } else if (M5.BtnB.wasPressed()) {
-                listScroll_ = (listScroll_ - 1 + totalPages) % totalPages; // Hoch
+                listScroll_ = (listScroll_ - 1 + totalPages) % totalPages; // up
             } else if (M5.BtnPWR.wasClicked()) {
-                listScroll_ = (listScroll_ + 1) % totalPages; // Runter
+                listScroll_ = (listScroll_ + 1) % totalPages; // down
             }
             break;
         }
@@ -425,7 +425,7 @@ void ShotTimer::loop() {
                 finishLearning();
             } else if (M5.BtnPWR.wasHold()) {
                 disarmMic();
-                state_ = State::IDLE; // Lernmodus abbrechen
+                state_ = State::IDLE; // cancel learn mode
             }
             break;
 
@@ -445,13 +445,13 @@ void ShotTimer::loop() {
                 AppSettings::save();
                 state_ = State::IDLE;
             } else if (M5.BtnB.wasPressed() || M5.BtnPWR.wasClicked()) {
-                state_ = State::IDLE; // verwerfen
+                state_ = State::IDLE; // discard
             }
             break;
     }
 
-    // Anzeige bewusst auf ~14Hz gedrosselt, damit das Erkennungs-Polling in State::RUNNING
-    // nicht durch teure Display-Redraws ausgebremst wird.
+    // Display deliberately throttled to ~14Hz, so the detection polling in State::RUNNING isn't
+    // slowed down by expensive display redraws.
     uint32_t now = millis();
     if (now - lastDrawMs_ >= 70) {
         lastDrawMs_ = now;
@@ -485,18 +485,18 @@ void ShotTimer::draw() {
 
             canvas.setTextColor(Theme::ACCENT, Theme::BG);
             canvas.setCursor(4, 130);
-            canvas.print(AppSettings::shotDetectMode == 0 ? "Modus: Mikrofon" : "Modus: Rueckstoss");
+            canvas.print(AppSettings::shotDetectMode == 0 ? "Mode: Microphone" : "Mode: Recoil");
             canvas.setTextColor(Theme::SUBTEXT, Theme::BG);
             canvas.setCursor(4, 142);
-            canvas.print("B halten = wechseln");
+            canvas.print("Hold B = switch");
 
             canvas.setCursor(4, 205);
-            canvas.print("PWR halten = Lernmodus");
+            canvas.print("Hold PWR = learn mode");
             canvas.setCursor(4, 220);
             if (AppSettings::shotDetectMode == 0) {
-                canvas.printf("Schw [B/PWR]: %d", AppSettings::shotThreshold);
+                canvas.printf("Thr [B/PWR]: %d", AppSettings::shotThreshold);
             } else {
-                canvas.printf("Schw [B/PWR]: %.1fg", static_cast<double>(AppSettings::recoilThresholdMilliG) / 1000.0);
+                canvas.printf("Thr [B/PWR]: %.1fg", static_cast<double>(AppSettings::recoilThresholdMilliG) / 1000.0);
             }
             break;
 
@@ -567,9 +567,9 @@ void ShotTimer::draw() {
             canvas.setTextColor(Theme::SUBTEXT, Theme::BG);
             canvas.setCursor(4, 204);
             if (totalPages > 1) {
-                canvas.printf("B/PWR=Seite (%d/%d)", listScroll_ + 1, totalPages);
+                canvas.printf("B/PWR=page (%d/%d)", listScroll_ + 1, totalPages);
             } else if (shotCount_ == 0) {
-                canvas.print("Keine Schuesse erkannt");
+                canvas.print("No shots detected");
             }
             canvas.setCursor(4, 220);
             canvas.print("A = run again");
@@ -580,28 +580,28 @@ void ShotTimer::draw() {
             canvas.setTextColor(Theme::ACCENT2, Theme::BG);
             canvas.setTextSize(2);
             canvas.setCursor(4, 28);
-            canvas.print("LERNMODUS");
+            canvas.print("LEARN MODE");
             canvas.setTextSize(1);
             canvas.setTextColor(Theme::SUBTEXT, Theme::BG);
             canvas.setCursor(4, 50);
-            canvas.print(AppSettings::shotDetectMode == 0 ? "Modus: Mikrofon" : "Modus: Rueckstoss");
+            canvas.print(AppSettings::shotDetectMode == 0 ? "Mode: Microphone" : "Mode: Recoil");
             canvas.setTextColor(Theme::TEXT, Theme::BG);
             canvas.setCursor(4, 64);
-            canvas.print("1-2 Schuss abgeben.");
+            canvas.print("Fire 1-2 shots.");
             canvas.setCursor(4, 76);
-            canvas.print("Echo wird mitgelernt.");
+            canvas.print("Echo is learned too.");
 
             char buf[8];
             snprintf(buf, sizeof(buf), "%d", learnedShotCount_);
             drawBigNumber(buf, canvas.width() / 2, 100, Theme::ACCENT, 1);
             canvas.setTextColor(Theme::SUBTEXT, Theme::BG);
             canvas.setCursor(4, 160);
-            canvas.print("Schuss(e) erkannt");
+            canvas.print("shot(s) detected");
 
             canvas.setCursor(4, 204);
-            canvas.print("A = fertig");
+            canvas.print("A = done");
             canvas.setCursor(4, 220);
-            canvas.print("PWR halten = Abbruch");
+            canvas.print("Hold PWR = cancel");
             break;
         }
 
@@ -609,7 +609,7 @@ void ShotTimer::draw() {
             canvas.setTextColor(Theme::ACCENT, Theme::BG);
             canvas.setTextSize(1);
             canvas.setCursor(4, 16);
-            canvas.print("Vorschlag:");
+            canvas.print("Suggestion:");
 
             constexpr int kValueX = 80;
             constexpr int kRowPitch = 18;
@@ -617,7 +617,7 @@ void ShotTimer::draw() {
 
             canvas.setTextColor(Theme::TEXT, Theme::BG);
             canvas.setCursor(4, y);
-            canvas.print("Schwelle:");
+            canvas.print("Threshold:");
             canvas.setTextColor(Theme::GOOD, Theme::BG);
             canvas.setCursor(kValueX, y);
             if (AppSettings::shotDetectMode == 0) {
@@ -629,7 +629,7 @@ void ShotTimer::draw() {
 
             canvas.setTextColor(Theme::TEXT, Theme::BG);
             canvas.setCursor(4, y);
-            canvas.print("Sperre:");
+            canvas.print("Lockout:");
             canvas.setTextColor(Theme::GOOD, Theme::BG);
             canvas.setCursor(kValueX, y);
             canvas.printf("%ums", static_cast<unsigned>(learnSuggestLockoutMs_));
@@ -637,7 +637,7 @@ void ShotTimer::draw() {
 
             canvas.setTextColor(Theme::TEXT, Theme::BG);
             canvas.setCursor(4, y);
-            canvas.print("Verh.:");
+            canvas.print("Ratio:");
             canvas.setTextColor(Theme::GOOD, Theme::BG);
             canvas.setCursor(kValueX, y);
             canvas.printf("%.0f%%", static_cast<double>(learnSuggestRatio_ * 100.0f));
@@ -645,16 +645,16 @@ void ShotTimer::draw() {
 
             canvas.setTextColor(Theme::TEXT, Theme::BG);
             canvas.setCursor(4, y);
-            canvas.print(AppSettings::shotDetectMode == 0 ? "Spektral:" : "Schaerfe:");
+            canvas.print(AppSettings::shotDetectMode == 0 ? "Spectral:" : "Sharpness:");
             canvas.setTextColor(Theme::GOOD, Theme::BG);
             canvas.setCursor(kValueX, y);
             canvas.printf("%.0f%%", static_cast<double>(learnSuggestDiscriminator_ * 100.0f));
 
             canvas.setTextColor(Theme::SUBTEXT, Theme::BG);
             canvas.setCursor(4, 204);
-            canvas.print("A = uebernehmen");
+            canvas.print("A = apply");
             canvas.setCursor(4, 220);
-            canvas.print("B/PWR = verwerfen");
+            canvas.print("B/PWR = discard");
             break;
         }
     }

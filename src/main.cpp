@@ -14,9 +14,9 @@
 
 M5Canvas canvas(&M5.Display);
 
-// Geteilte Berechnungs-Engines fuer Anti-Cant/Stability -- siehe Globals.h. Hier definiert,
-// damit sowohl die Einzelmodule als auch ComboView dieselbe Instanz (und damit denselben
-// Kalibrierungs-/Session-Zustand) verwenden.
+// Shared calculation engines for anti-cant/stability -- see Globals.h. Defined here so both the
+// standalone modules and ComboView use the same instance (and therefore the same calibration/
+// session state).
 CantCalculator gCantCalc;
 StabilityCalculator gStabilityCalc;
 
@@ -41,22 +41,22 @@ float selAnimY = kRowFirstY;
 bool menuAnimating = false;
 uint32_t lastMenuDrawMs = 0;
 
-// Tastenbelegung app-weit: B = Hoch, Power-Knopf = Runter, A kurz = Bestaetigen,
-// A lang = Zurueck/Menue (zentral hier behandelt, siehe loop()).
+// App-wide button layout: B = up, power button = down, short A = confirm,
+// long A = back/menu (handled centrally here, see loop()).
 bool aLongFired = false;
 
-// Display-Energiesparen: nach Inaktivitaet erst dimmen, dann ganz abdunkeln (Akku ist mit
-// ~200mAh klein). Jeder Tastendruck weckt sofort wieder auf -- der weckende Druck selbst
-// wird dabei verworfen, damit man durch das Aufwecken nicht versehentlich z.B. den
-// Shot-Timer scharf schaltet. Zeiten/Helligkeiten kommen aus AppSettings (Settings-Modul).
+// Display power saving: after inactivity, dim first, then go fully dark (the battery is small at
+// ~200mAh). Any button press wakes it up immediately -- the waking press itself is discarded so
+// that waking up doesn't accidentally do something like arm the shot timer. Times/brightness
+// levels come from AppSettings (Settings module).
 enum class PowerState { ACTIVE, DIMMED, ASLEEP };
 PowerState powerState = PowerState::ACTIVE;
 uint32_t lastActivityMs = 0;
 
-// Gibt true zurueck, wenn ein Tastendruck in diesem Frame nur zum Aufwecken diente und
-// von der eigentlichen Menue-/Modul-Logik ignoriert werden soll. "busy" (z.B. laufender
-// Shot-Timer, Live-Messung in Anti-Cant/Stability) haelt den Bildschirm hell, auch ohne
-// Tastendruck -- nur echte Untaetigkeit (nichts gedrueckt UND nichts aktiv) dimmt.
+// Returns true if a button press in this frame was only meant to wake the screen and should be
+// ignored by the actual menu/module logic. "busy" (e.g. a running shot timer, live measurement in
+// anti-cant/stability) keeps the screen bright even without a button press -- only genuine
+// inactivity (nothing pressed AND nothing active) dims it.
 bool updatePowerState(bool buttonPressed, bool busy) {
     uint32_t now = millis();
     bool wasAsleep = (powerState != PowerState::ACTIVE);
@@ -87,21 +87,21 @@ bool updatePowerState(bool buttonPressed, bool busy) {
 
 int rowY(int i) { return kRowFirstY + i * kRowSpacing; }
 
-// Kleine Vektor-Icons je Menuepunkt, gezeichnet links neben dem Listentext.
+// Small vector icons per menu entry, drawn left of the list text.
 void drawIcon(int index, int cx, int cy, uint16_t color) {
     switch (index) {
-        case 0: // Shot Timer -- Stoppuhr
+        case 0: // Shot Timer -- stopwatch
             canvas.drawCircle(cx, cy, 9, color);
             canvas.fillRect(cx - 2, cy - 13, 4, 3, color);
             canvas.drawLine(cx, cy, cx, cy - 5, color);
             canvas.drawLine(cx, cy, cx + 4, cy - 2, color);
             break;
-        case 1: // Anti-Cant -- Wasserwaage
+        case 1: // Anti-Cant -- spirit level
             canvas.drawRoundRect(cx - 11, cy - 6, 22, 12, 3, color);
             canvas.drawFastHLine(cx - 8, cy, 16, color);
             canvas.fillCircle(cx + 3, cy, 2, color);
             break;
-        case 2: // Stability -- Fadenkreuz
+        case 2: // Stability -- crosshair
             canvas.drawCircle(cx, cy, 9, color);
             canvas.drawCircle(cx, cy, 4, color);
             canvas.drawFastHLine(cx - 13, cy, 6, color);
@@ -109,14 +109,14 @@ void drawIcon(int index, int cx, int cy, uint16_t color) {
             canvas.drawFastVLine(cx, cy - 13, 6, color);
             canvas.drawFastVLine(cx, cy + 7, 6, color);
             break;
-        case 3: // Combo -- gestapelte Wasserwaage + Fadenkreuz
+        case 3: // Combo -- stacked spirit level + crosshair
             canvas.drawRoundRect(cx - 11, cy - 10, 22, 8, 2, color);
             canvas.drawFastHLine(cx - 8, cy - 6, 16, color);
             canvas.drawCircle(cx, cy + 6, 6, color);
             canvas.drawFastHLine(cx - 4, cy + 6, 8, color);
             canvas.drawFastVLine(cx, cy + 2, 8, color);
             break;
-        case 4: // Settings -- Zahnrad
+        case 4: // Settings -- gear
             canvas.drawCircle(cx, cy, 8, color);
             canvas.drawCircle(cx, cy, 3, color);
             for (int a = 0; a < 360; a += 45) {
@@ -131,10 +131,9 @@ void drawIcon(int index, int cx, int cy, uint16_t color) {
     }
 }
 
-// Bootanimation passend zum Shooting-Thema: ein Fadenkreuz zoomt wie ein einrastendes
-// Zielfernrohr nach aussen, "loest" mit Blitz+Beep aus, dann wird RANGESTICK Buchstabe fuer
-// Buchstabe "eingeschossen" -- je ein kleiner Einschuss-Punkt ueber dem Buchstaben markiert den
-// Treffer.
+// Boot animation matching the shooting theme: a crosshair zooms outward like a scope settling
+// into focus, "fires" with a flash+beep, then RANGESTICK is "zeroed in" letter by letter -- a
+// small impact dot above each letter marks the hit.
 void splash() {
     constexpr int cx = 67;
     constexpr int cy = 104;
@@ -143,7 +142,7 @@ void splash() {
     for (int step = 0; step <= kZoomSteps; ++step) {
         float t = static_cast<float>(step) / kZoomSteps;
         int r = 4 + static_cast<int>(t * 70.0f);
-        float rotDeg = (1.0f - t) * 50.0f; // dreht sich beim Einrasten auf 0 Grad ein
+        float rotDeg = (1.0f - t) * 50.0f; // rotates into 0 degrees as it settles
         canvas.fillScreen(Theme::BG);
         canvas.drawCircle(cx, cy, r, Theme::ACCENT);
         for (int a = 0; a < 360; a += 90) {
@@ -157,7 +156,7 @@ void splash() {
         canvas.pushSprite(0, 0);
         delay(28);
     }
-    delay(250); // kurz auf dem eingerasteten Fadenkreuz verweilen, bevor "geschossen" wird
+    delay(250); // linger briefly on the settled crosshair before "firing"
 
     M5.Speaker.begin();
     M5.Speaker.setVolume(AppSettings::buzzerVolume);
@@ -172,7 +171,7 @@ void splash() {
 
     const char* line1 = "RANGE";
     const char* line2 = "STICK";
-    constexpr int kCharW = 18; // Breite je Buchstabe bei textSize(3) (6px Basisbreite * 3)
+    constexpr int kCharW = 18; // width per character at textSize(3) (6px base width * 3)
     size_t len1 = strlen(line1);
     size_t len2 = strlen(line2);
     int x1 = (canvas.width() - static_cast<int>(len1) * kCharW) / 2;
@@ -218,20 +217,20 @@ void drawMenu() {
     canvas.setCursor(4, 16);
     canvas.print("select [A]");
 
-    // Animierter Auswahlbalken, gleitet zur Zielzeile statt zu springen.
+    // Animated selection bar, glides to the target row instead of jumping.
     canvas.fillRoundRect(2, static_cast<int>(selAnimY) - 8, canvas.width() - 4, 30, 4, Theme::PANEL);
     canvas.drawRoundRect(2, static_cast<int>(selAnimY) - 8, canvas.width() - 4, 30, 4, Theme::ACCENT);
 
     canvas.setTextSize(1);
     for (int i = 0; i < kModuleCount; ++i) {
-        // Highlight-Band fuer Reihe i liegt bei [rowY(i)-8, rowY(i)+22], Mitte = rowY(i)+7.
-        int y = rowY(i) + 3; // 8px hoher Text mittig in diesem Band
+        // Highlight band for row i spans [rowY(i)-8, rowY(i)+22], centered at rowY(i)+7.
+        int y = rowY(i) + 3; // 8px tall text centered within this band
         bool sel = (i == menuIndex);
         uint16_t color = sel ? Theme::ACCENT : Theme::TEXT;
         drawIcon(i, 18, rowY(i) + 7, color);
         canvas.setTextColor(color, sel ? Theme::PANEL : Theme::BG);
-        // Text zweimal mit 1px Versatz gedruckt -- billiger "Bold"-Effekt, da
-        // setTextSize(2) bei 135px Breite die Labels in die naechste Zeile umbricht.
+        // Text printed twice with a 1px offset -- a cheap "bold" effect, since setTextSize(2)
+        // would wrap the labels onto the next line at 135px width.
         canvas.setCursor(34, y);
         canvas.print(kModules[i]->name());
         canvas.setCursor(35, y);
@@ -240,19 +239,19 @@ void drawMenu() {
 
     canvas.setTextColor(Theme::SUBTEXT, Theme::BG);
     canvas.setCursor(4, 210);
-    canvas.print("B=Hoch PWR=Runter");
+    canvas.print("B=Up PWR=Down");
     canvas.setCursor(4, 224);
-    canvas.print("A = waehlen");
+    canvas.print("A = select");
     drawBatteryIndicator();
     canvas.pushSprite(0, 0);
 }
 
 void loopMenu() {
     if (M5.BtnB.wasPressed()) {
-        menuIndex = (menuIndex - 1 + kModuleCount) % kModuleCount; // Hoch
+        menuIndex = (menuIndex - 1 + kModuleCount) % kModuleCount; // up
         menuAnimating = true;
     } else if (M5.BtnPWR.wasClicked()) {
-        menuIndex = (menuIndex + 1) % kModuleCount; // Runter
+        menuIndex = (menuIndex + 1) % kModuleCount; // down
         menuAnimating = true;
     } else if (M5.BtnA.wasReleased()) {
         activeModule = kModules[menuIndex];
@@ -261,7 +260,7 @@ void loopMenu() {
     }
 
     uint32_t now = millis();
-    if (now - lastMenuDrawMs < 16) return; // ~60fps Deckel
+    if (now - lastMenuDrawMs < 16) return; // ~60fps cap
     lastMenuDrawMs = now;
 
     if (menuAnimating) {
@@ -281,8 +280,8 @@ void setup() {
     auto cfg = M5.config();
     M5.begin(cfg);
     AppSettings::load();
-    AppSettings::applyCpuFreq();  // Akku-Einstellung: Taktrate vor allem weiteren Setup setzen
-    AppSettings::applyDisplay(); // Rotation, Helligkeit, Akzentfarbe aus den gespeicherten Settings
+    AppSettings::applyCpuFreq();  // battery setting: set clock rate before any further setup
+    AppSettings::applyDisplay(); // rotation, brightness, accent color from saved settings
     canvas.createSprite(M5.Display.width(), M5.Display.height());
     splash();
     selAnimY = static_cast<float>(rowY(menuIndex));
@@ -291,23 +290,23 @@ void setup() {
 }
 
 void loop() {
-    // Einziger M5.update()-Aufruf pro Durchlauf: Module rufen es nicht selbst auf,
-    // sonst wuerde der zweite Aufruf die gerade erkannte Tastenflanke ueberschreiben.
+    // The only M5.update() call per pass: modules don't call it themselves, otherwise a second
+    // call would overwrite the just-detected button edge.
     M5.update();
 
     bool buttonActivity = M5.BtnA.wasPressed() || M5.BtnB.wasPressed() ||
                            M5.BtnPWR.wasClicked() || M5.BtnPWR.wasHold();
     bool busy = (activeModule != nullptr) && activeModule->isBusy();
     if (updatePowerState(buttonActivity, busy)) {
-        return; // dieser Tastendruck war nur das Aufwecken, nicht weiterverarbeiten
+        return; // this button press was only the wake-up, don't process it further
     }
 
-    // Langer Druck auf A: erst fragen, ob das Modul selbst eine Ebene zurueck hat (z.B.
-    // Settings' Feld-Liste -> Kategorie-Liste); erst wenn nicht, verlaesst es ins Hauptmenue.
-    // Zentral hier erkannt, damit Module selbst nur den kurzen Druck (wasReleased) als
-    // "Bestaetigen" sehen. Wird der lange Druck hier ausgeloest, bekommt das Modul/Menue
-    // diesen Frame gar nicht mehr zu sehen (return) -- so kann ein langer Druck nie
-    // zusaetzlich auch noch die Kurz-Druck-Aktion des Moduls anstossen.
+    // Long press on A: first ask whether the module itself has a level to go back to (e.g.
+    // Settings' field list -> category list); only if not, it exits to the main menu. Detected
+    // centrally here so modules themselves only ever see the short press (wasReleased) as
+    // "confirm". If the long press fires here, the module/menu doesn't get to see this frame at
+    // all (return) -- so a long press can never also additionally trigger the module's short-
+    // press action.
     if (M5.BtnA.pressedFor(600) && !aLongFired) {
         aLongFired = true;
         if (activeModule != nullptr) {
@@ -323,7 +322,7 @@ void loop() {
     if (M5.BtnA.wasReleased()) {
         bool wasLong = aLongFired;
         aLongFired = false;
-        if (wasLong) return; // war ein langer Druck -- keine Kurz-Aktion mehr ausloesen
+        if (wasLong) return; // was a long press -- don't also trigger a short-press action
     }
 
     if (activeModule == nullptr) {

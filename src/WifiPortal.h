@@ -3,17 +3,17 @@
 #include <WebServer.h>
 #include <DNSServer.h>
 
-// Captive-Portal-Flow zur WLAN-Einrichtung ohne Tastatur am Geraet: startet einen offenen
-// SoftAP ("RangeStick-Setup"), zu dem man sich per Handy verbindet, und eine kleine Webseite
-// zur Auswahl des Netzwerks + Passworteingabe. Wird aus Settings (SYSTEM > "WLAN einrichten")
-// gesteuert -- start()/stop() schalten WLAN gezielt nur fuer diesen Flow ein/aus, damit der
-// Stick ausserhalb davon wie gewohnt ohne Funk laeuft (Akku).
+// Captive portal flow for WiFi setup without a keyboard on the device: starts an open SoftAP
+// ("RangeStick-Setup") that you connect to with your phone, plus a small web page to pick the
+// network and enter the password. Driven from Settings (SYSTEM > "Set up WiFi") -- start()/
+// stop() switch WiFi on/off specifically just for this flow, so the stick otherwise keeps
+// running radio-free as usual (battery).
 class WifiPortal {
 public:
     enum class State { IDLE, RUNNING, SAVED_OK, SAVED_FAIL };
 
     void start();
-    void loop(); // muss waehrend RUNNING/SAVED_* regelmaessig aufgerufen werden (DNS+HTTP)
+    void loop(); // must be called regularly during RUNNING/SAVED_* (DNS+HTTP)
     void stop();
 
     State state() const { return state_; }

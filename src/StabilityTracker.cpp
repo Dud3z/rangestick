@@ -19,13 +19,13 @@ void StabilityTracker::loop() {
     if (M5.BtnA.wasReleased()) {
         gStabilityCalc.resetSession();
     } else if (M5.BtnB.wasPressed()) {
-        displayStyle_ = (displayStyle_ - 1 + STYLE_COUNT) % STYLE_COUNT; // Hoch
+        displayStyle_ = (displayStyle_ - 1 + STYLE_COUNT) % STYLE_COUNT; // up
     } else if (M5.BtnPWR.wasClicked()) {
-        displayStyle_ = (displayStyle_ + 1) % STYLE_COUNT; // Runter
+        displayStyle_ = (displayStyle_ + 1) % STYLE_COUNT; // down
     }
 
-    // Kleine Pause vor dem Poll, damit die CPU zwischen den (deutlich selteneren) echten
-    // IMU-Samples idlen kann, statt im Akku-Modus dauerhaft auf vollem Takt zu busy-spinnen.
+    // Small pause before polling, so the CPU can idle between the (much rarer) real IMU samples
+    // instead of busy-spinning at full clock all the time in battery mode.
     delay(AppSettings::imuPollDelayMs);
     if (M5.Imu.update()) {
         auto d = M5.Imu.getImuData();
@@ -69,7 +69,7 @@ void StabilityTracker::drawScatterStyle(int cx, int cy, uint16_t color) {
     canvas.drawFastHLine(cx - r, cy, r * 2, Theme::SUBTEXT);
     canvas.drawFastVLine(cx, cy - r, r * 2, Theme::SUBTEXT);
 
-    constexpr float kScaleMoaPerPixel = 0.18f; // wie viel MOA ein Pixel Auslenkung darstellt
+    constexpr float kScaleMoaPerPixel = 0.18f; // how many MOA one pixel of deflection represents
     int scatterCount = gStabilityCalc.scatterCount();
     const float* sx = gStabilityCalc.scatterX();
     const float* sy = gStabilityCalc.scatterY();
@@ -94,8 +94,8 @@ void StabilityTracker::drawPulseStyle(int cx, int cy, uint16_t color) {
     int maxR = 46;
     int baseR = 12 + static_cast<int>(frac * (maxR - 12));
 
-    // Leichtes "Atmen" zusaetzlich zur Wobble-Groesse, damit der Kreis auch bei sehr ruhiger
-    // Lage sichtbar lebendig bleibt statt komplett statisch zu stehen.
+    // Slight "breathing" on top of the wobble size, so the circle stays visibly alive even at
+    // very steady poses instead of standing completely static.
     float pulse = sinf(millis() / 250.0f) * 3.0f;
     int r = baseR + static_cast<int>(pulse);
     if (r < 6) r = 6;
@@ -134,7 +134,7 @@ void StabilityTracker::draw() {
     canvas.setCursor(4, textY + 12);
     canvas.print("(lower = steadier)");
 
-    int areaTop = textY + 24; // unter den zwei Label-Zeilen
+    int areaTop = textY + 24; // below the two label lines
     constexpr int kAreaHeight = 96;
     switch (displayStyle_) {
         case 0: drawSparklineStyle(4, areaTop, 127, kAreaHeight, color); break;
@@ -147,7 +147,7 @@ void StabilityTracker::draw() {
     canvas.printf("Peak: %.1f MOA", static_cast<double>(gStabilityCalc.peakMoa()));
     canvas.setTextColor(Theme::SUBTEXT, Theme::BG);
     canvas.setCursor(4, 220);
-    canvas.printf("A=reset  Stil%d: B/PWR", displayStyle_ + 1);
+    canvas.printf("A=reset  Style%d: B/PWR", displayStyle_ + 1);
     drawBatteryIndicator();
     canvas.pushSprite(0, 0);
 }

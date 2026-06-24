@@ -3,18 +3,18 @@
 #include "AppModule.h"
 #include <cstdint>
 
-// Digitale Wasserwaage (UI). Die eigentliche Berechnung/Kalibrierung liegt in der global
-// geteilten CantCalculator-Instanz (siehe main.cpp) -- dieselbe Kalibrierung gilt dadurch auch
-// im Kombi-Modus (ComboView), ohne sie doppelt durchfuehren zu muessen.
-// Im READY-Zustand kann mit B (Hoch) / Power (Runter) zwischen mehreren Anzeige-Stilen fuer
-// den Winkel umgeschaltet werden (Horizont-Linie, Wasserwaage-Roehre, Drehrad).
+// Digital level (UI). The actual calculation/calibration lives in the globally shared
+// CantCalculator instance (see main.cpp) -- a calibration therefore also applies in combo mode
+// (ComboView), without having to be performed twice.
+// In the READY state, B (up) / power (down) cycles through several display styles for the angle
+// (horizon line, level tube, dial).
 class CantLevel : public AppModule {
 public:
     void onEnter() override;
     void onExit() override;
     void loop() override;
     const char* name() const override { return "ANTI-CANT"; }
-    bool isBusy() const override { return true; } // Live-Anzeige, soll nicht dimmen
+    bool isBusy() const override { return true; } // live display, should not dim
 
 private:
     int displayStyle_ = 0;

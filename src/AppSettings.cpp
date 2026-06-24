@@ -45,11 +45,11 @@ namespace {
 constexpr uint16_t kAccentPalette[kAccentPaletteCount] = {
     rgb565(0, 200, 255),   // Cyan
     rgb565(255, 150, 20),  // Orange
-    rgb565(60, 220, 130),  // Gruen
-    rgb565(170, 90, 255),  // Lila
-    rgb565(255, 70, 70),   // Rot
-    rgb565(70, 130, 255),  // Blau
-    rgb565(255, 220, 40),  // Gelb
+    rgb565(60, 220, 130),  // Green
+    rgb565(170, 90, 255),  // Purple
+    rgb565(255, 70, 70),   // Red
+    rgb565(70, 130, 255),  // Blue
+    rgb565(255, 220, 40),  // Yellow
     rgb565(255, 90, 180),  // Pink
 };
 } // namespace

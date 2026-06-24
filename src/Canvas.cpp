@@ -16,7 +16,7 @@ int drawBigNumber(const char* text, int centerX, int y, uint16_t color, int text
 }
 
 void drawBatteryIndicator() {
-    // PMIC-Abfrage (I2C) gedrosselt statt bei jedem Redraw -- siehe AppSettings::battReadIntervalMs.
+    // PMIC query (I2C) throttled instead of on every redraw -- see AppSettings::battReadIntervalMs.
     static int cachedLevel = 0;
     static bool cachedCharging = false;
     static bool haveReading = false;

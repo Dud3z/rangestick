@@ -11,7 +11,7 @@ namespace {
 constexpr int kBlockPitch = 30;
 constexpr int kListStartY = 28;
 constexpr int kCategoryCount = 5;
-constexpr int kVisibleRows = 6; // Kategorien mit mehr Feldern scrollen (siehe draw())
+constexpr int kVisibleRows = 6; // categories with more fields scroll (see draw())
 
 int clampIdx(int idx, int n) {
     if (idx < 0) return 0;
@@ -43,7 +43,7 @@ int findFloat(const float* a, int n, float v) {
 
 int Settings::categoryOf(int id) const {
     if (id <= SCREEN_FLIP || id == ACCENT_COLOR) return 0;       // Display
-    if (id >= SHOT_DETECT_MODE && id <= RECOIL_SHARPNESS) return 1; // Shot-Timer
+    if (id >= SHOT_DETECT_MODE && id <= RECOIL_SHARPNESS) return 1; // Shot Timer
     if (id >= CANT_GREEN && id <= CANT_CALIB_COUNTDOWN) return 2;  // Anti-Cant
     if (id >= STAB_GREEN && id <= STAB_DEADZONE) return 3;        // Stability
     return 4;                                                     // System
@@ -103,10 +103,10 @@ bool Settings::handleBack() {
     if (view_ == View::FIELD_LIST) {
         view_ = View::CATEGORY_LIST;
         editing_ = false;
-        AppSettings::save(); // evtl. noch nicht gespeicherte Aenderung beim Zurueckgehen sichern
-        return true; // selbst behandelt -- Settings bleibt aktiv, main.cpp soll nicht verlassen
+        AppSettings::save(); // persist a change that may not have been saved yet when going back
+        return true; // handled itself -- Settings stays active, main.cpp should not exit it
     }
-    return false; // schon auf der Kategorie-Liste -> main.cpp verlaesst Settings global
+    return false; // already on the category list -> main.cpp exits Settings globally
 }
 
 void Settings::adjust(int dir) {
@@ -318,17 +318,17 @@ void Settings::adjust(int dir) {
 
 const char* Settings::label(int id) const {
     static const char* labels[SETTING_COUNT] = {
-        "Helligkeit aktiv", "Helligkeit gedimmt", "Dimmen nach", "Ausschalten nach",
-        "Bildschirm", "Akzentfarbe",
-        "Erkennungsmodus", "Schwelle (Zahl)", "Delay min", "Delay max",
-        "Buzzer-Lautstaerke", "Echo-Sperre", "Echo-Verhaeltnis", "Frequenzanalyse",
-        "Spektral-Schwelle",
-        "Rueckstoss-Schwelle", "Rueckstoss-Sperre", "Rueckstoss-Verh.", "Schaerfe-Filter", "Schaerfe-Schwelle",
-        "Gruen-Schwelle", "Gelb-Schwelle",
-        "Kalibrier-Countdown", "Gruen-Schwelle", "Gelb-Schwelle", "Graph-Maximum", "Totzone",
-        "CPU-Takt", "IMU-Poll-Pause", "Akku-Leseintervall",
-        "WLAN einrichten", "Update pruefen",
-        "Zuruecksetzen",
+        "Active brightness", "Dimmed brightness", "Dim after", "Sleep after",
+        "Screen", "Accent color",
+        "Detect mode", "Threshold (number)", "Delay min", "Delay max",
+        "Buzzer volume", "Echo lockout", "Echo ratio", "Spectral filter",
+        "Spectral threshold",
+        "Recoil threshold", "Recoil lockout", "Recoil ratio", "Sharpness filter", "Sharpness threshold",
+        "Green threshold", "Yellow threshold",
+        "Calib. countdown", "Green threshold", "Yellow threshold", "Graph max", "Deadzone",
+        "CPU clock", "IMU poll delay", "Battery read interval",
+        "Set up WiFi", "Check for update",
+        "Reset to defaults",
     };
     return labels[id];
 }
@@ -338,40 +338,40 @@ void Settings::formatValue(int id, char* buf, size_t n) const {
         case BRIGHTNESS_ACTIVE: snprintf(buf, n, "%d", AppSettings::brightnessActive); break;
         case BRIGHTNESS_DIM: snprintf(buf, n, "%d", AppSettings::brightnessDim); break;
         case DIM_TIMEOUT:
-            if (AppSettings::dimTimeoutMs == AppSettings::kTimeoutNever) snprintf(buf, n, "Aus");
+            if (AppSettings::dimTimeoutMs == AppSettings::kTimeoutNever) snprintf(buf, n, "Off");
             else snprintf(buf, n, "%us", static_cast<unsigned>(AppSettings::dimTimeoutMs / 1000));
             break;
         case SLEEP_TIMEOUT:
-            if (AppSettings::sleepTimeoutMs == AppSettings::kTimeoutNever) snprintf(buf, n, "Aus");
+            if (AppSettings::sleepTimeoutMs == AppSettings::kTimeoutNever) snprintf(buf, n, "Off");
             else snprintf(buf, n, "%umin", static_cast<unsigned>(AppSettings::sleepTimeoutMs / 60000));
             break;
-        case SCREEN_FLIP: snprintf(buf, n, "%s", AppSettings::screenFlipped ? "180 Grad" : "Normal"); break;
+        case SCREEN_FLIP: snprintf(buf, n, "%s", AppSettings::screenFlipped ? "180 deg" : "Normal"); break;
         case ACCENT_COLOR: {
-            static const char* names[] = {"Cyan", "Orange", "Gruen", "Lila", "Rot", "Blau", "Gelb", "Pink"};
+            static const char* names[] = {"Cyan", "Orange", "Green", "Purple", "Red", "Blue", "Yellow", "Pink"};
             snprintf(buf, n, "%s", names[AppSettings::accentColorIndex]);
             break;
         }
-        case SHOT_DETECT_MODE: snprintf(buf, n, "%s", AppSettings::shotDetectMode == 0 ? "Mikrofon" : "Rueckstoss"); break;
+        case SHOT_DETECT_MODE: snprintf(buf, n, "%s", AppSettings::shotDetectMode == 0 ? "Microphone" : "Recoil"); break;
         case SHOT_THRESHOLD: snprintf(buf, n, "%d", AppSettings::shotThreshold); break;
         case SHOT_DELAY_MIN: snprintf(buf, n, "%.1fs", static_cast<double>(AppSettings::shotDelayMinS)); break;
         case SHOT_DELAY_MAX: snprintf(buf, n, "%.1fs", static_cast<double>(AppSettings::shotDelayMaxS)); break;
         case BUZZER_VOLUME:
-            if (AppSettings::buzzerVolume == 0) snprintf(buf, n, "Stumm");
+            if (AppSettings::buzzerVolume == 0) snprintf(buf, n, "Mute");
             else snprintf(buf, n, "%d", AppSettings::buzzerVolume);
             break;
         case SHOT_ECHO_LOCKOUT: snprintf(buf, n, "%ums", static_cast<unsigned>(AppSettings::shotEchoLockoutMs)); break;
         case SHOT_ECHO_RATIO: snprintf(buf, n, "%.0f%%", static_cast<double>(AppSettings::shotEchoRatio * 100.0f)); break;
-        case SHOT_SPECTRAL_ENABLED: snprintf(buf, n, "%s", AppSettings::shotSpectralEnabled ? "An" : "Aus"); break;
+        case SHOT_SPECTRAL_ENABLED: snprintf(buf, n, "%s", AppSettings::shotSpectralEnabled ? "On" : "Off"); break;
         case SHOT_SPECTRAL_RATIO: snprintf(buf, n, "%.0f%%", static_cast<double>(AppSettings::shotSpectralRatio * 100.0f)); break;
         case RECOIL_THRESHOLD: snprintf(buf, n, "%.1fg", static_cast<double>(AppSettings::recoilThresholdMilliG) / 1000.0); break;
         case RECOIL_LOCKOUT: snprintf(buf, n, "%ums", static_cast<unsigned>(AppSettings::recoilLockoutMs)); break;
         case RECOIL_RATIO: snprintf(buf, n, "%.0f%%", static_cast<double>(AppSettings::recoilRatio * 100.0f)); break;
-        case RECOIL_SHARPNESS_ENABLED: snprintf(buf, n, "%s", AppSettings::recoilSharpnessEnabled ? "An" : "Aus"); break;
+        case RECOIL_SHARPNESS_ENABLED: snprintf(buf, n, "%s", AppSettings::recoilSharpnessEnabled ? "On" : "Off"); break;
         case RECOIL_SHARPNESS: snprintf(buf, n, "%.0f%%", static_cast<double>(AppSettings::recoilSharpness * 100.0f)); break;
         case CANT_GREEN: snprintf(buf, n, "%.1f deg", static_cast<double>(AppSettings::cantGreenDeg)); break;
         case CANT_YELLOW: snprintf(buf, n, "%.1f deg", static_cast<double>(AppSettings::cantYellowDeg)); break;
         case CANT_CALIB_COUNTDOWN:
-            if (AppSettings::cantCalibCountdownS <= 0.0f) snprintf(buf, n, "Aus");
+            if (AppSettings::cantCalibCountdownS <= 0.0f) snprintf(buf, n, "Off");
             else snprintf(buf, n, "%.0fs", static_cast<double>(AppSettings::cantCalibCountdownS));
             break;
         case STAB_GREEN: snprintf(buf, n, "%.1f MOA", static_cast<double>(AppSettings::stabilityGreenMoa)); break;
@@ -380,23 +380,23 @@ void Settings::formatValue(int id, char* buf, size_t n) const {
         case STAB_DEADZONE: snprintf(buf, n, "%.1f MOA", static_cast<double>(AppSettings::stabilityDeadzoneMoa)); break;
         case CPU_FREQ: snprintf(buf, n, "%uMHz", AppSettings::cpuFreqMhz); break;
         case IMU_POLL_DELAY:
-            if (AppSettings::imuPollDelayMs == 0) snprintf(buf, n, "Aus");
+            if (AppSettings::imuPollDelayMs == 0) snprintf(buf, n, "Off");
             else snprintf(buf, n, "%ums", AppSettings::imuPollDelayMs);
             break;
         case BATT_READ_INTERVAL:
-            if (AppSettings::battReadIntervalMs == 0) snprintf(buf, n, "Jeder Redraw");
+            if (AppSettings::battReadIntervalMs == 0) snprintf(buf, n, "Every redraw");
             else snprintf(buf, n, "%ums", AppSettings::battReadIntervalMs);
             break;
-        case WIFI_SETUP: snprintf(buf, n, "A druecken"); break;
-        case UPDATE_CHECK: snprintf(buf, n, "A druecken"); break;
-        case RESET_DEFAULTS: snprintf(buf, n, "A druecken"); break;
+        case WIFI_SETUP: snprintf(buf, n, "Press A"); break;
+        case UPDATE_CHECK: snprintf(buf, n, "Press A"); break;
+        case RESET_DEFAULTS: snprintf(buf, n, "Press A"); break;
         default: buf[0] = 0; break;
     }
 }
 
 void Settings::loop() {
-    // A lang = zuerst handleBack() (eine Ebene innerhalb von Settings zurueck), erst danach
-    // global "zurueck ins Hauptmenue" (main.cpp) -- siehe Kommentar dort und in handleBack().
+    // Long A = first handleBack() (one level back inside Settings), only then globally "back to
+    // the main menu" (main.cpp) -- see the comment there and in handleBack().
     if (view_ == View::WIFI_FLOW) {
         wifiPortal_.loop();
     } else if (view_ == View::OTA_FLOW) {
@@ -406,9 +406,9 @@ void Settings::loop() {
         }
     } else if (view_ == View::CATEGORY_LIST) {
         if (M5.BtnB.wasPressed()) {
-            categoryIndex_ = (categoryIndex_ - 1 + kCategoryCount) % kCategoryCount; // Hoch
+            categoryIndex_ = (categoryIndex_ - 1 + kCategoryCount) % kCategoryCount; // up
         } else if (M5.BtnPWR.wasClicked()) {
-            categoryIndex_ = (categoryIndex_ + 1) % kCategoryCount; // Runter
+            categoryIndex_ = (categoryIndex_ + 1) % kCategoryCount; // down
         } else if (M5.BtnA.wasReleased()) {
             selectedIndex_ = firstFieldOfCategory(categoryIndex_);
             editing_ = false;
@@ -434,15 +434,15 @@ void Settings::loop() {
             }
         } else if (M5.BtnB.wasPressed()) {
             if (!editing_) {
-                selectedIndex_ = stepFieldInCategory(selectedIndex_, categoryIndex_, -1); // Hoch
+                selectedIndex_ = stepFieldInCategory(selectedIndex_, categoryIndex_, -1); // up
             } else {
-                adjust(+1); // Hoch = Wert+
+                adjust(+1); // up = value+
             }
         } else if (M5.BtnPWR.wasClicked()) {
             if (!editing_) {
-                selectedIndex_ = stepFieldInCategory(selectedIndex_, categoryIndex_, +1); // Runter
+                selectedIndex_ = stepFieldInCategory(selectedIndex_, categoryIndex_, +1); // down
             } else {
-                adjust(-1); // Runter = Wert-
+                adjust(-1); // down = value-
             }
         }
     }
@@ -478,9 +478,9 @@ void Settings::drawCategoryList() {
     canvas.setTextSize(1);
     canvas.setTextColor(Theme::SUBTEXT, Theme::BG);
     canvas.setCursor(4, 216);
-    canvas.print("B=Hoch PWR=Runter");
+    canvas.print("B=Up PWR=Down");
     canvas.setCursor(4, 228);
-    canvas.print("A = oeffnen");
+    canvas.print("A = open");
     drawBatteryIndicator();
     canvas.pushSprite(0, 0);
 }
@@ -496,9 +496,9 @@ void Settings::drawFieldList() {
     canvas.setCursor(4, 14);
     canvas.print(categoryName(categoryIndex_));
 
-    // Lokalen Index von selectedIndex_ innerhalb der Kategorie und Feldanzahl der Kategorie
-    // ermitteln, um -- falls mehr Felder vorhanden sind als Zeilen passen -- die Auswahl per
-    // Scroll-Fenster sichtbar zu halten, statt unten aus dem Bildschirm zu laufen.
+    // Determine selectedIndex_'s local index within the category and the category's field count,
+    // so that -- if there are more fields than fit in the visible rows -- the selection stays
+    // visible via a scroll window instead of running off the bottom of the screen.
     int localSelected = 0;
     int categoryFieldCount = 0;
     for (int idx = 0; idx < SETTING_COUNT; ++idx) {
@@ -558,14 +558,14 @@ void Settings::drawFieldList() {
     canvas.setTextColor(Theme::SUBTEXT, Theme::BG);
     if (!editing_) {
         canvas.setCursor(4, 216);
-        canvas.print("B=Hoch PWR=Runter");
+        canvas.print("B=Up PWR=Down");
         canvas.setCursor(4, 228);
-        canvas.print("A = bearbeiten");
+        canvas.print("A = edit");
     } else {
         canvas.setCursor(4, 216);
         canvas.print("B=+  PWR=-");
         canvas.setCursor(4, 228);
-        canvas.print("A = speichern");
+        canvas.print("A = save");
     }
     drawBatteryIndicator();
     canvas.pushSprite(0, 0);
@@ -576,35 +576,35 @@ void Settings::drawWifiSetup() {
     canvas.setTextColor(Theme::ACCENT, Theme::BG);
     canvas.setTextSize(1);
     canvas.setCursor(4, 2);
-    canvas.print("WLAN EINRICHTEN");
+    canvas.print("WIFI SETUP");
 
     switch (wifiPortal_.state()) {
         case WifiPortal::State::SAVED_OK:
             canvas.setTextColor(Theme::GOOD, Theme::BG);
             canvas.setTextSize(2);
             canvas.setCursor(8, 60);
-            canvas.print("Verbunden!");
+            canvas.print("Connected!");
             canvas.setTextSize(1);
             canvas.setTextColor(Theme::SUBTEXT, Theme::BG);
             canvas.setCursor(4, 100);
-            canvas.print("WLAN-Daten gespeichert.");
+            canvas.print("WiFi credentials saved.");
             break;
         case WifiPortal::State::SAVED_FAIL:
             canvas.setTextColor(Theme::BAD, Theme::BG);
             canvas.setTextSize(2);
             canvas.setCursor(8, 50);
-            canvas.print("Fehlgeschlagen");
+            canvas.print("Failed");
             canvas.setTextSize(1);
             canvas.setTextColor(Theme::SUBTEXT, Theme::BG);
             canvas.setCursor(4, 90);
-            canvas.print("Passwort falsch?");
+            canvas.print("Wrong password?");
             canvas.setCursor(4, 102);
-            canvas.print("Im Browser neu versuchen.");
+            canvas.print("Try again in the browser.");
             break;
         default: // RUNNING
             canvas.setTextColor(Theme::TEXT, Theme::BG);
             canvas.setCursor(4, 40);
-            canvas.print("1. Mit Handy verbinden:");
+            canvas.print("1. Connect with phone:");
             canvas.setTextColor(Theme::ACCENT, Theme::BG);
             canvas.setTextSize(2);
             canvas.setCursor(8, 54);
@@ -612,7 +612,7 @@ void Settings::drawWifiSetup() {
             canvas.setTextSize(1);
             canvas.setTextColor(Theme::TEXT, Theme::BG);
             canvas.setCursor(4, 90);
-            canvas.print("2. Browser oeffnen:");
+            canvas.print("2. Open browser at:");
             canvas.setTextColor(Theme::ACCENT, Theme::BG);
             canvas.setTextSize(2);
             canvas.setCursor(8, 104);
@@ -620,13 +620,13 @@ void Settings::drawWifiSetup() {
             canvas.setTextSize(1);
             canvas.setTextColor(Theme::SUBTEXT, Theme::BG);
             canvas.setCursor(4, 140);
-            canvas.print("(oeffnet sich oft automatisch)");
+            canvas.print("(often opens automatically)");
             break;
     }
 
     canvas.setTextColor(Theme::SUBTEXT, Theme::BG);
     canvas.setCursor(4, 228);
-    canvas.print("A halten = zurueck");
+    canvas.print("Hold A = back");
     drawBatteryIndicator();
     canvas.pushSprite(0, 0);
 }
@@ -643,19 +643,19 @@ void Settings::drawOtaUpdate() {
             canvas.setTextColor(Theme::TEXT, Theme::BG);
             canvas.setTextSize(2);
             canvas.setCursor(8, 70);
-            canvas.print("Verbinde...");
+            canvas.print("Connecting...");
             break;
         case OtaUpdater::State::CHECKING:
             canvas.setTextColor(Theme::TEXT, Theme::BG);
             canvas.setTextSize(2);
             canvas.setCursor(8, 70);
-            canvas.print("Pruefe...");
+            canvas.print("Checking...");
             break;
         case OtaUpdater::State::UP_TO_DATE:
             canvas.setTextColor(Theme::GOOD, Theme::BG);
             canvas.setTextSize(2);
             canvas.setCursor(8, 60);
-            canvas.print("Aktuell");
+            canvas.print("Up to date");
             canvas.setTextSize(1);
             canvas.setTextColor(Theme::SUBTEXT, Theme::BG);
             canvas.setCursor(4, 95);
@@ -672,18 +672,18 @@ void Settings::drawOtaUpdate() {
             canvas.printf("%s -> %s", Version::FW_VERSION, otaUpdater_.remoteVersion());
             canvas.setTextColor(Theme::SUBTEXT, Theme::BG);
             canvas.setCursor(4, 105);
-            canvas.print("A = jetzt laden");
+            canvas.print("A = download now");
             break;
         case OtaUpdater::State::DOWNLOADING:
         case OtaUpdater::State::DONE:
-            // Diese Zustaende zeichnen waehrend des blockierenden Downloads ihr eigenes
-            // Fortschritts-UI direkt (siehe OtaUpdater::drawMessage) -- hier nichts zu tun.
+            // These states draw their own progress UI directly while the blocking download runs
+            // (see OtaUpdater::drawMessage) -- nothing to do here.
             break;
         case OtaUpdater::State::ERROR:
             canvas.setTextColor(Theme::BAD, Theme::BG);
             canvas.setTextSize(2);
             canvas.setCursor(8, 60);
-            canvas.print("Fehler");
+            canvas.print("Error");
             canvas.setTextSize(1);
             canvas.setTextColor(Theme::SUBTEXT, Theme::BG);
             canvas.setCursor(4, 95);
@@ -695,7 +695,7 @@ void Settings::drawOtaUpdate() {
 
     canvas.setTextColor(Theme::SUBTEXT, Theme::BG);
     canvas.setCursor(4, 228);
-    canvas.print("A halten = zurueck");
+    canvas.print("Hold A = back");
     drawBatteryIndicator();
     canvas.pushSprite(0, 0);
 }

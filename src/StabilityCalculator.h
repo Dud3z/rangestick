@@ -2,29 +2,29 @@
 
 #include <cstdint>
 
-// Reine Berechnungslogik fuer das "Wackeln" der Waffe, ohne UI. Wird sowohl vom eigenstaendigen
-// Stability-Modul als auch vom Kombi-Modus (ComboView) verwendet -- ueber eine gemeinsame globale
-// Instanz (siehe main.cpp), damit Session/Peak in beiden Ansichten konsistent sind.
+// Pure calculation logic for the weapon's "wobble", without UI. Used both by the standalone
+// stability module and by the combo mode (ComboView) -- via a shared global instance (see
+// main.cpp), so session/peak stay consistent across both views.
 //
-// Statt fester Roll/Pitch-Achsen (die von der Montage-Orientierung des Sticks abhaengen wuerden)
-// wird die normalisierte (und tiefpassgefilterte) Schwerkraft-Richtung selbst getrackt: fuer jedes
-// Sample wird der Winkel zur gemittelten Richtung des Rolling-Windows bestimmt (asin des
-// Kreuzprodukt-Betrags, numerisch stabil fuer kleine Winkel), daraus RMS gebildet und in MOA
-// umgerechnet (1 Grad = 60 MOA).
+// Instead of fixed roll/pitch axes (which would depend on the stick's mounting orientation), the
+// normalized (and low-pass filtered) gravity direction itself is tracked: for each sample, the
+// angle to the averaged direction of the rolling window is computed (asin of the cross-product
+// magnitude, numerically stable for small angles), an RMS is formed from that and converted to
+// MOA (1 degree = 60 MOA).
 class StabilityCalculator {
 public:
-    static constexpr int WINDOW = 50;        // ~1s bei 50Hz Sample-Rate
-    static constexpr int HISTORY = 60;       // Verlaufsgrafik, ein Eintrag alle ~70ms (~4s Fenster)
-    static constexpr int SCATTER_COUNT = 24; // Schussgruppen-Streudiagramm, ein Punkt pro Sample
+    static constexpr int WINDOW = 50;        // ~1s at 50Hz sample rate
+    static constexpr int HISTORY = 60;       // history graph, one entry every ~70ms (~4s window)
+    static constexpr int SCATTER_COUNT = 24; // shot-group scatter plot, one point per sample
 
-    // Mit einer bereits geholten IMU-Messung aufrufen (genau einmal pro Frame von der jeweiligen
-    // AppModule::loop() gelesen) -- die Klasse liest den Sensor NICHT selbst (intern weiterhin
-    // auf SAMPLE_INTERVAL_MS gedrosselt). Dadurch lesen mehrere Verbraucher (Anti-Cant + Stability
-    // im Kombi-Modus) niemals zweimal pro Frame vom selben Sensor, was sich sonst gegenseitig die
-    // "neue Daten"-Markierung wegschnappen kann -- mit dem Effekt, dass Stability nur noch
-    // sporadisch echte Samples bekommt und nie zur Ruhe (nahe 0) kommt.
+    // Call with an already-fetched IMU reading (read exactly once per frame by the respective
+    // AppModule::loop()) -- this class does NOT read the sensor itself (still internally
+    // throttled to SAMPLE_INTERVAL_MS). This way, multiple consumers (anti-cant + stability in
+    // combo mode) never read from the same sensor twice per frame, which would otherwise let
+    // them snatch the "new data" flag away from each other -- with the effect that stability
+    // would only get real samples sporadically and never settle down (near 0).
     void update(float ax, float ay, float az);
-    void resetSession();  // Fenster/Peak/Verlauf zuruecksetzen (z.B. neuer Anschlag)
+    void resetSession();  // reset window/peak/history (e.g. new string)
 
     float wobbleMoa() const { return wobbleMoa_; }
     float peakMoa() const { return peakMoa_; }
@@ -40,12 +40,12 @@ public:
 
 private:
     static constexpr uint32_t SAMPLE_INTERVAL_MS = 20;
-    static constexpr float ACCEL_FILTER_ALPHA = 0.15f; // Tiefpass gegen Sensorrauschen
+    static constexpr float ACCEL_FILTER_ALPHA = 0.15f; // low-pass against sensor noise
 
     void sample(float ax, float ay, float az);
 
     bool filterInit_ = false;
-    float fax_ = 0.0f, fay_ = 0.0f, faz_ = 0.0f; // tiefpassgefilterte Accel-Werte
+    float fax_ = 0.0f, fay_ = 0.0f, faz_ = 0.0f; // low-pass filtered accel values
 
     float axBuf_[WINDOW] = {0};
     float ayBuf_[WINDOW] = {0};

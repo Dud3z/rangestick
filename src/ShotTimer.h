@@ -4,60 +4,60 @@
 #include <cstddef>
 #include <cstdint>
 
-// Shot-Timer: Zufalls-Delay -> Buzzer-Beep startet die Zeit -> ein Schuss wird erkannt ->
-// Splits werden geloggt. Zwei wahlweise Erkennungsarten (AppSettings::shotDetectMode, im
-// IDLE-Bildschirm per "B halten" umschaltbar):
-//   0 = Mikrofon: Amplituden-Peak im Schallsignal.
-//   1 = Rueckstoss: Peak-Ausschlag der IMU-Gesamtbeschleunigung ueber 1g (Rueckstossimpuls).
+// Shot timer: random delay -> buzzer beep starts the clock -> a shot is detected -> splits are
+// logged. Two selectable detection modes (AppSettings::shotDetectMode, switchable on the IDLE
+// screen via "hold B"):
+//   0 = microphone: amplitude peak in the audio signal.
+//   1 = recoil: peak deviation of total IMU acceleration above 1g (recoil impulse).
 //
-// Beide Erkennungsarten sind gleich aufgebaut, nur das Rohsignal unterscheidet sich:
-//   1. Schwelle: Mindest-Peak, um ueberhaupt als Kandidat zu gelten.
-//   2. Nachschwing-Unterdrueckung (zwei Stufen, fuer Mic: Wandecho; fuer Rueckstoss: das
-//      mechanische Nachschwingen/Setzen der Waffe nach dem Schuss):
-//        a) Hartes Sperrfenster (shotEchoLockoutMs / recoilLockoutMs) -- keine Erkennung direkt
-//           danach.
-//        b) Weiches Fenster danach (Vielfaches des harten Fensters): ein Peak zaehlt dort nur,
-//           wenn er mindestens shotEchoRatio/recoilRatio so stark ist wie der vorherige Schuss.
-//   3. Form-Diskriminator, um Falsch-Positive (Klick/Tastendruck bzw. Stoss/Wackeln) zu
-//      verwerfen, auch wenn sie laut/stark genug waren:
-//        - Mic: Frequenzanalyse (FFT) -- ein Schuss ist akustisch breitbandig, ein Klick eng.
-//        - Rueckstoss: Anstiegs-Schaerfe -- ein echter Rueckstossimpuls springt innerhalb
-//          weniger Samples auf den Peak, ein Stoss/Wackeln baut sich langsamer auf.
+// Both detection modes are structured the same way, only the raw signal differs:
+//   1. Threshold: minimum peak to even count as a candidate.
+//   2. Settling suppression (two stages, for mic: room echo; for recoil: the weapon's mechanical
+//      settling/recoil after the shot):
+//        a) Hard lockout window (shotEchoLockoutMs / recoilLockoutMs) -- no detection directly
+//           after.
+//        b) Soft window after that (a multiple of the hard window): a peak only counts there if
+//           it's at least shotEchoRatio/recoilRatio as strong as the previous shot.
+//   3. Shape discriminator to reject false positives (click/button press, or bump/shake) even if
+//      they were loud/strong enough:
+//        - Mic: frequency analysis (FFT) -- a shot is acoustically broadband, a click is narrow.
+//        - Recoil: rise sharpness -- a real recoil impulse jumps to the peak within a few
+//          samples, a bump/shake builds up more slowly.
 //
-// Lernmodus (PWR halten in IDLE): zeichnet bei echten Schuessen das volle Nachschwing-Profil
-// der GERADE GEWAEHLTEN Erkennungsart auf und schlaegt daraus passende Werte fuer
-// Schwelle/Sperre/Verhaeltnis/Diskriminator vor, statt dass der Nutzer sie von Hand durchprobiert.
+// Learn mode (hold PWR in IDLE): records the full settling profile of the CURRENTLY SELECTED
+// detection mode on real shots and suggests matching values for threshold/lockout/ratio/
+// discriminator from that, instead of the user having to try values by hand.
 class ShotTimer : public AppModule {
 public:
     void onEnter() override;
     void onExit() override;
     void loop() override;
     const char* name() const override { return "SHOT TIMER"; }
-    // Nicht busy nur in IDLE -- waehrend Delay/Laufen/Auswertung/Lernen soll der Bildschirm
-    // nicht dimmen, auch wenn dabei keine Taste gedrueckt wird.
+    // Not busy only in IDLE -- during delay/running/result/learning the screen should not dim,
+    // even if no button is pressed in the meantime.
     bool isBusy() const override { return state_ != State::IDLE; }
 
 private:
     enum class State { IDLE, DELAY, RUNNING, STOPPED, LEARN_ARMED, LEARN_RESULT };
 
     static constexpr int MAX_SHOTS = 20;
-    static constexpr uint32_t BEEP_BLANK_MS = 200;    // Pause direkt nach dem Beep (Umschalt-/Ausschwing-Zeit)
-    static constexpr size_t MIC_SAMPLES = 128;        // ~8ms Haeppchen bei 16kHz -> Erkennungs-Aufloesung
+    static constexpr uint32_t BEEP_BLANK_MS = 200;    // pause right after the beep (switchover/ringing time)
+    static constexpr size_t MIC_SAMPLES = 128;        // ~8ms chunk at 16kHz -> detection resolution
     static constexpr uint32_t MIC_SAMPLE_RATE = 16000;
-    static constexpr uint32_t ECHO_WINDOW_MULTIPLIER = 3; // weiches Fenster = Sperrfenster * Faktor
-    static constexpr int LIST_VISIBLE_ROWS = 10;          // Schuesse pro Seite in der Ergebnisliste
+    static constexpr uint32_t ECHO_WINDOW_MULTIPLIER = 3; // soft window = lockout window * factor
+    static constexpr int LIST_VISIBLE_ROWS = 10;          // shots per page in the results list
 
-    static constexpr int RECOIL_BUF_SIZE = 12;        // Ringpuffer fuer die Anstiegs-Schaerfe-Messung
-    static constexpr int RECOIL_SHARPNESS_LOOKBACK = 4; // Samples vor dem Peak, die fuer "Anstieg" verglichen werden
+    static constexpr int RECOIL_BUF_SIZE = 12;        // ring buffer for the rise-sharpness measurement
+    static constexpr int RECOIL_SHARPNESS_LOOKBACK = 4; // samples before the peak compared for "rise"
 
-    static constexpr int LEARN_MAX_SHOTS = 3;        // mehr braucht die Analyse nicht
-    static constexpr int LEARN_MAX_SECONDARY = 8;    // Nachschwinger pro Schuss
-    static constexpr uint32_t LEARN_WINDOW_MS = 600;  // Aufnahmefenster nach jedem Primaer-Peak
-    static constexpr uint32_t LEARN_MIN_GAP_MS = 15;  // Entprellen innerhalb der Aufzeichnung
+    static constexpr int LEARN_MAX_SHOTS = 3;        // the analysis doesn't need more
+    static constexpr int LEARN_MAX_SECONDARY = 8;    // settling events per shot
+    static constexpr uint32_t LEARN_WINDOW_MS = 600;  // capture window after each primary peak
+    static constexpr uint32_t LEARN_MIN_GAP_MS = 15;  // debouncing within the recording
 
     struct LearnedShot {
         int16_t primaryPeak = 0;
-        float primaryDiscriminator = 0.0f; // Spektral-Verhaeltnis (Mic) bzw. Schaerfe (Rueckstoss)
+        float primaryDiscriminator = 0.0f; // spectral ratio (mic) or sharpness (recoil)
         int secondaryCount = 0;
         uint32_t secondaryTimeMs[LEARN_MAX_SECONDARY] = {0};
         int16_t secondaryPeak[LEARN_MAX_SECONDARY] = {0};
@@ -74,18 +74,18 @@ private:
     uint32_t shotTimes_[MAX_SHOTS] = {0};
     int shotCount_ = 0;
 
-    // Schwelle liegt als Zahl in AppSettings::shotThreshold/recoilThresholdMilliG (im
-    // Settings-Menue aenderbar); BtnB/PWR in IDLE bieten weiterhin den schnellen Direkt-
-    // Umschalter im jeweils aktiven Feld.
-    int listScroll_ = 0; // Seiten-Index der Schussliste in State::STOPPED
+    // Threshold lives as a number in AppSettings::shotThreshold/recoilThresholdMilliG (editable
+    // in the settings menu); BtnB/PWR in IDLE still offer the quick direct toggle on the
+    // respective active field.
+    int listScroll_ = 0; // page index of the shot list in State::STOPPED
 
     int16_t micBuf_[MIC_SAMPLES] = {0};
     float recoilBuf_[RECOIL_BUF_SIZE] = {0.0f};
     int recoilBufIdx_ = 0;
-    bool modeToggleFired_ = false; // B-lang in IDLE = Modus wechseln (einmalig pro Druck)
+    bool modeToggleFired_ = false; // long-B in IDLE = switch mode (once per press)
 
     uint32_t lastDrawMs_ = 0;
-    uint32_t flashUntilMs_ = 0; // kurzer visueller Blitz bei Schusserkennung
+    uint32_t flashUntilMs_ = 0; // brief visual flash on shot detection
 
     LearnedShot learnedShots_[LEARN_MAX_SHOTS];
     int learnedShotCount_ = 0;
@@ -107,8 +107,8 @@ private:
     void registerLearnSample(int16_t peak, float discriminator);
     void finishLearning();
     void draw();
-    int16_t threshold() const;        // Mikrofon-Schwelle
-    int16_t recoilThreshold() const;  // Rueckstoss-Schwelle (milli-g)
-    float computeSpectralRatio() const;  // Anteil hochfrequenter Energie im aktuellen micBuf_-Haeppchen
-    float computeRecoilSharpness() const; // Anstiegs-Schaerfe des aktuellen recoilBuf_-Peaks (0..1)
+    int16_t threshold() const;        // microphone threshold
+    int16_t recoilThreshold() const;  // recoil threshold (milli-g)
+    float computeSpectralRatio() const;  // fraction of high-frequency energy in the current micBuf_ chunk
+    float computeRecoilSharpness() const; // rise sharpness of the current recoilBuf_ peak (0..1)
 };

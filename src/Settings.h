@@ -6,14 +6,14 @@
 #include <cstddef>
 #include <cstdint>
 
-// Einstellungsmenue mit echter zweistufiger Navigation, wie im Hauptmenue:
-//   Kategorie-Liste (Display/Timer/Anti-Cant/Stability/System) -> Feld-Liste der Kategorie.
-// Browse Kategorien:  B = Hoch, Power = Runter, A = Kategorie oeffnen
-// Browse Felder:      B = Hoch (voriges Feld), Power = Runter (naechstes Feld), A = Edit oeffnen
-// Edit:                B = Wert+, Power = Wert-, A = Edit verlassen + speichern
-// A LANG: erst eine Ebene innerhalb von Settings zurueck (Feld-Liste -> Kategorie-Liste, siehe
-// handleBack()), danach (auf der Kategorie-Liste) global zurueck ins Hauptmenue (main.cpp).
-// "Reset Standard" ist eine eigene Kategorie mit nur einem Feld, A loest die Aktion direkt aus.
+// Settings menu with real two-level navigation, like the main menu:
+//   Category list (Display/Timer/Anti-Cant/Stability/System) -> field list of the category.
+// Browse categories: B = up, Power = down, A = open category
+// Browse fields:      B = up (previous field), Power = down (next field), A = open edit
+// Edit:                B = value+, Power = value-, A = leave edit + save
+// LONG A: first one level back inside Settings (field list -> category list, see
+// handleBack()), then (on the category list) globally back to the main menu (main.cpp).
+// "Reset defaults" is its own category with only one field, A triggers the action directly.
 class Settings : public AppModule {
 public:
     void onEnter() override;

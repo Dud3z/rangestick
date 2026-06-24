@@ -12,7 +12,7 @@ void WifiPortal::handleRoot() {
         server_.send(200, "text/html",
             "<meta http-equiv='refresh' content='2'>"
             "<body style='background:#111;color:#eee;font-family:sans-serif;padding:16px'>"
-            "Suche WLANs...</body>");
+            "Scanning for networks...</body>");
         return;
     }
 
@@ -23,13 +23,13 @@ void WifiPortal::handleRoot() {
 
     String html;
     html += "<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width,initial-scale=1'>";
-    html += "<title>RangeStick WLAN</title><style>body{font-family:sans-serif;background:#111;color:#eee;padding:16px}";
+    html += "<title>RangeStick WiFi</title><style>body{font-family:sans-serif;background:#111;color:#eee;padding:16px}";
     html += "select,input{width:100%;padding:8px;margin:6px 0;box-sizing:border-box}";
     html += "button{width:100%;padding:10px;background:#0c8;color:#000;border:none;font-weight:bold}</style></head><body>";
-    html += "<h2>RangeStick WLAN einrichten</h2><form method='POST' action='/save'>";
-    html += "<label>Netzwerk</label><select name='ssid'>" + options + "</select>";
-    html += "<label>Passwort</label><input type='password' name='pass' maxlength='63'>";
-    html += "<button type='submit'>Speichern &amp; verbinden</button></form></body></html>";
+    html += "<h2>Set up RangeStick WiFi</h2><form method='POST' action='/save'>";
+    html += "<label>Network</label><select name='ssid'>" + options + "</select>";
+    html += "<label>Password</label><input type='password' name='pass' maxlength='63'>";
+    html += "<button type='submit'>Save &amp; connect</button></form></body></html>";
     server_.send(200, "text/html", html);
 }
 
@@ -39,24 +39,25 @@ void WifiPortal::handleSave() {
     if (ssid.length() == 0) {
         server_.send(200, "text/html",
             "<body style='background:#111;color:#eee;font-family:sans-serif;padding:16px'>"
-            "Kein Netzwerk gewaehlt.</body>");
+            "No network selected.</body>");
         return;
     }
     WifiConfig::save(ssid.c_str(), pass.c_str());
 
-    // Verbindung testen, waehrend der Setup-AP noch laeuft -- ESP32 kann AP+STA gleichzeitig.
+    // Test the connection while the setup AP is still running -- the ESP32 can run AP+STA at
+    // the same time.
     WiFi.begin(ssid.c_str(), pass.c_str());
     uint32_t startMs = millis();
     while (WiFi.status() != WL_CONNECTED && millis() - startMs < kConnectTestTimeoutMs) {
         delay(100);
     }
     bool ok = (WiFi.status() == WL_CONNECTED);
-    WiFi.disconnect(); // nur Testverbindung, AP bleibt fuer evtl. neuen Versuch bestehen
+    WiFi.disconnect(); // just a test connection, the AP stays up for a possible retry
     state_ = ok ? State::SAVED_OK : State::SAVED_FAIL;
 
     String html = "<body style='background:#111;color:#eee;font-family:sans-serif;padding:16px'>";
-    html += ok ? "Verbunden! Du kannst dieses Fenster schliessen."
-               : "Verbindung fehlgeschlagen -- Passwort falsch?";
+    html += ok ? "Connected! You can close this window."
+               : "Connection failed -- wrong password?";
     html += "</body>";
     server_.send(200, "text/html", html);
 }

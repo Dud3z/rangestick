@@ -10,19 +10,18 @@
 void ComboView::onEnter() {
     cantStyle_ = 0;
     lastDrawMs_ = 0;
-    gStabilityCalc.resetSession(); // Cant-Kalibrierung bleibt bewusst erhalten, nur Stability neu
+    gStabilityCalc.resetSession(); // cant calibration is deliberately kept, only stability resets
 }
 
 void ComboView::onExit() {
 }
 
 void ComboView::loop() {
-    // Sensor genau einmal pro Frame lesen und dieselbe Messung an beide Berechnungen
-    // weitergeben -- wuerde jede fuer sich M5.Imu.update() aufrufen, koennten sie sich
-    // gegenseitig die "neue Daten"-Markierung wegschnappen, sodass Stability nur noch
-    // sporadisch echte Samples bekommt und nie zur Ruhe kommt.
-    // Kleine Pause vor dem Poll, damit die CPU zwischen den (deutlich selteneren) echten
-    // IMU-Samples idlen kann, statt im Akku-Modus dauerhaft auf vollem Takt zu busy-spinnen.
+    // Read the sensor exactly once per frame and feed the same reading to both calculations --
+    // if each called M5.Imu.update() on its own, they could snatch the "new data" flag away from
+    // each other, so stability would only get real samples sporadically and never settle down.
+    // Small pause before polling, so the CPU can idle between the (much rarer) real IMU samples
+    // instead of busy-spinning at full clock all the time in battery mode.
     delay(AppSettings::imuPollDelayMs);
     if (M5.Imu.update()) {
         auto d = M5.Imu.getImuData();
@@ -36,9 +35,9 @@ void ComboView::loop() {
 
     if (gCantCalc.state() == CantCalculator::State::READY) {
         if (M5.BtnB.wasPressed()) {
-            cantStyle_ = (cantStyle_ - 1 + kCantStyleCount) % kCantStyleCount; // Hoch
+            cantStyle_ = (cantStyle_ - 1 + kCantStyleCount) % kCantStyleCount; // up
         } else if (M5.BtnPWR.wasClicked()) {
-            cantStyle_ = (cantStyle_ + 1) % kCantStyleCount; // Runter
+            cantStyle_ = (cantStyle_ + 1) % kCantStyleCount; // down
         }
     }
 
@@ -61,9 +60,9 @@ void ComboView::draw() {
         canvas.setTextColor(Theme::TEXT, Theme::BG);
         canvas.setTextSize(2);
         canvas.setCursor(8, 50);
-        canvas.print("Jetzt ruhig");
+        canvas.print("Hold");
         canvas.setCursor(8, 75);
-        canvas.print("halten...");
+        canvas.print("steady...");
         char cdBuf[4];
         snprintf(cdBuf, sizeof(cdBuf), "%d", gCantCalc.countdownSecondsLeft());
         drawBigNumber(cdBuf, canvas.width() / 2, 120, Theme::ACCENT2, 1);
@@ -77,23 +76,23 @@ void ComboView::draw() {
         canvas.setTextColor(rock ? Theme::ACCENT2 : Theme::TEXT, Theme::BG);
         canvas.setTextSize(2);
         canvas.setCursor(8, 60);
-        canvas.print(rock ? "Jetzt" : "Waffe");
+        canvas.print(rock ? "Now" : "Hold");
         canvas.setCursor(8, 85);
-        canvas.print(rock ? "kurz" : "waagerecht");
+        canvas.print(rock ? "tilt" : "weapon");
         canvas.setCursor(8, 110);
-        canvas.print(rock ? "kippen," : "halten,");
+        canvas.print(rock ? "briefly," : "level,");
         canvas.setCursor(8, 135);
-        canvas.print("dann A");
+        canvas.print("then A");
         canvas.setTextSize(1);
         canvas.setTextColor(Theme::SUBTEXT, Theme::BG);
         canvas.setCursor(4, 220);
-        canvas.print(rock ? "A = Rohrachse uebernehmen" : "A = Nullpunkt setzen");
+        canvas.print(rock ? "A = adopt bore axis" : "A = set zero point");
         drawBatteryIndicator();
         canvas.pushSprite(0, 0);
         return;
     }
 
-    // -- Anti-Cant: oberer, prominenter Bereich --
+    // -- Anti-cant: top, prominent area --
     float angleDeg = gCantCalc.angleDeg();
     uint16_t cantColor;
     float a = fabsf(angleDeg);
@@ -103,7 +102,7 @@ void ComboView::draw() {
 
     int cx = canvas.width() / 2;
 
-    // Zahl + Grad-Symbol als eine zentrierte Einheit, statt links oben "hingeklatscht".
+    // Number + degree symbol as one centered unit, instead of "slapped on" top left.
     char buf[8];
     snprintf(buf, sizeof(buf), "%+.1f", static_cast<double>(angleDeg));
     canvas.setTextSize(2);
@@ -126,7 +125,7 @@ void ComboView::draw() {
 
     canvas.drawFastHLine(4, 158, canvas.width() - 8, Theme::PANEL);
 
-    // -- Stability: unten, nur als schlanker Indikator --
+    // -- Stability: bottom, just as a slim indicator --
     float wobbleMoa = gStabilityCalc.wobbleMoa();
     uint16_t stabColor;
     if (wobbleMoa < AppSettings::stabilityGreenMoa) stabColor = Theme::GOOD;

@@ -3,16 +3,16 @@
 #include "AppModule.h"
 #include <cstdint>
 
-// Stability-Tracker (UI). Die eigentliche Berechnung liegt in der global geteilten
-// StabilityCalculator-Instanz (siehe main.cpp) -- dieselbe Messung/Session gilt dadurch auch
-// im Kombi-Modus (ComboView).
+// Stability tracker (UI). The actual calculation lives in the globally shared
+// StabilityCalculator instance (see main.cpp) -- the same measurement/session therefore also
+// applies in combo mode (ComboView).
 class StabilityTracker : public AppModule {
 public:
     void onEnter() override;
     void onExit() override;
     void loop() override;
     const char* name() const override { return "STABILITY"; }
-    bool isBusy() const override { return true; } // Live-Anzeige, soll nicht dimmen
+    bool isBusy() const override { return true; } // live display, should not dim
 
 private:
     static constexpr int STYLE_COUNT = 3;

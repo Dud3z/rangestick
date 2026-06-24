@@ -11,18 +11,18 @@ void StabilityCalculator::resetSession() {
     historyCount_ = 0;
     scatterIndex_ = 0;
     scatterCount_ = 0;
-    // Tiefpassfilter ebenfalls neu seeden: sonst mischt sich beim Wiedereinstieg in ein
-    // Stability-Modul die ALTE gefilterte Ausrichtung (von vor dem Verlassen) mit der NEUEN
-    // Lage in einer einzigen EMA-Spur -- wenn das Geraet inzwischen bewegt wurde, erzeugt das
-    // einen kurzen aber massiven Schein-Ausschlag, obwohl es jetzt eigentlich still liegt.
+    // Also re-seed the low-pass filter: otherwise, when re-entering a stability module, the OLD
+    // filtered orientation (from before leaving) would mix with the NEW pose in a single EMA
+    // trace -- if the device was moved in the meantime, this produces a brief but massive
+    // phantom spike even though it is now actually lying still.
     filterInit_ = false;
 }
 
 void StabilityCalculator::sample(float ax, float ay, float az) {
-    // Tiefpass auf die Rohwerte: das BMI270-Rauschen allein entspricht schon ca. 0.1-0.15 Grad
-    // Winkel-Jitter, was durch die x60-MOA-Umrechnung wie mehrere MOA "Wackeln" aussieht --
-    // auch im absoluten Stillstand. Ohne Filterung wuerde reines Sensorrauschen gemessen,
-    // nicht die tatsaechliche Bewegung der Waffe.
+    // Low-pass on the raw values: the BMI270 noise alone already corresponds to about 0.1-0.15
+    // degrees of angular jitter, which through the x60 MOA conversion looks like several MOA of
+    // "wobble" -- even at complete rest. Without filtering, we'd be measuring pure sensor noise,
+    // not the weapon's actual movement.
     if (!filterInit_) {
         fax_ = ax;
         fay_ = ay;
@@ -35,7 +35,7 @@ void StabilityCalculator::sample(float ax, float ay, float az) {
     }
 
     float norm = sqrtf(fax_ * fax_ + fay_ * fay_ + faz_ * faz_);
-    if (norm < 0.01f) return; // ungueltige Messung (freier Fall o.ae.), verwerfen
+    if (norm < 0.01f) return; // invalid reading (free fall or similar), discard
 
     int latest = bufIndex_;
     axBuf_[bufIndex_] = fax_ / norm;
@@ -44,19 +44,19 @@ void StabilityCalculator::sample(float ax, float ay, float az) {
     bufIndex_ = (bufIndex_ + 1) % WINDOW;
     if (bufCount_ < WINDOW) bufCount_++;
 
-    if (bufCount_ < 4) return; // braucht ein paar Samples bevor Streuung sinnvoll ist
+    if (bufCount_ < 4) return; // needs a few samples before scatter is meaningful
 
     float mx = 0, my = 0, mz = 0;
     for (int i = 0; i < bufCount_; ++i) { mx += axBuf_[i]; my += ayBuf_[i]; mz += azBuf_[i]; }
     float mlen = sqrtf(mx * mx + my * my + mz * mz);
     if (mlen < 0.01f) return;
-    mx /= mlen; my /= mlen; mz /= mlen; // gemittelte Ausrichtung des Fensters, normalisiert
+    mx /= mlen; my /= mlen; mz /= mlen; // averaged orientation of the window, normalized
 
-    // Abweichung ueber das Kreuzprodukt (asin) statt Skalarprodukt (acos): bei den hier
-    // erwarteten kleinen Winkeln liegt der Skalarprodukt-Wert sehr nahe an 1.0, wo acos()
-    // numerisch instabil ist (Ableitung divergiert) -- winziges Rundungsrauschen wurde so
-    // zu einem kuenstlichen Sockel von mehreren Grad "Wackeln" aufgeblasen, selbst im
-    // absoluten Stillstand. asin(|Kreuzprodukt|) ist fuer kleine Winkel gutmuetig.
+    // Deviation via the cross product (asin) instead of the dot product (acos): at the small
+    // angles expected here, the dot-product value sits very close to 1.0, where acos() is
+    // numerically unstable (its derivative diverges) -- tiny rounding noise would otherwise get
+    // blown up into an artificial baseline of several degrees of "wobble", even at complete
+    // rest. asin(|cross product|) is well-behaved for small angles.
     float sumSq = 0;
     for (int i = 0; i < bufCount_; ++i) {
         float cxp = ayBuf_[i] * mz - azBuf_[i] * my;
@@ -67,15 +67,15 @@ void StabilityCalculator::sample(float ax, float ay, float az) {
         float devDeg = asinf(crossMag) * 180.0f / static_cast<float>(M_PI);
         sumSq += devDeg * devDeg;
     }
-    float wobbleDeg = sqrtf(sumSq / bufCount_); // RMS-Abweichung von der mittleren Ausrichtung
+    float wobbleDeg = sqrtf(sumSq / bufCount_); // RMS deviation from the mean orientation
 
-    wobbleMoa_ = wobbleDeg * 60.0f; // 1 Grad = 60 MOA (Winkel-Einheit, distanzunabhaengig)
-    if (wobbleMoa_ < AppSettings::stabilityDeadzoneMoa) wobbleMoa_ = 0.0f; // Restrauschen im Ruhezustand ausblenden
+    wobbleMoa_ = wobbleDeg * 60.0f; // 1 degree = 60 MOA (angular unit, distance-independent)
+    if (wobbleMoa_ < AppSettings::stabilityDeadzoneMoa) wobbleMoa_ = 0.0f; // hide residual noise at rest
     if (wobbleMoa_ > peakMoa_) peakMoa_ = wobbleMoa_;
 
-    // Schussgruppen-Streudiagramm: tangentiale Abweichung des neuesten Samples auf eine lokale
-    // 2D-Ebene (u/v) senkrecht zur gemittelten Richtung projizieren -- ergibt eine "Schussgruppe"
-    // unabhaengig von der Montage-Orientierung des Sticks.
+    // Shot-group scatter plot: project the tangential deviation of the latest sample onto a
+    // local 2D plane (u/v) perpendicular to the averaged direction -- yields a "shot group"
+    // independent of the stick's mounting orientation.
     float hx = 0, hy = 0, hz = 1;
     if (fabsf(mz) > 0.9f) { hx = 1; hy = 0; hz = 0; }
     float ux = my * hz - mz * hy, uy = mz * hx - mx * hz, uz = mx * hy - my * hx;

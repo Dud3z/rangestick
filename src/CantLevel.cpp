@@ -16,8 +16,8 @@ void CantLevel::onExit() {
 }
 
 void CantLevel::loop() {
-    // Kleine Pause vor dem Poll, damit die CPU zwischen den (deutlich selteneren) echten
-    // IMU-Samples idlen kann, statt im Akku-Modus dauerhaft auf vollem Takt zu busy-spinnen.
+    // Small pause before polling, so the CPU can idle between the (much rarer) real IMU samples
+    // instead of busy-spinning at full clock all the time in battery mode.
     delay(AppSettings::imuPollDelayMs);
     if (M5.Imu.update()) {
         auto d = M5.Imu.getImuData();
@@ -30,9 +30,9 @@ void CantLevel::loop() {
 
     if (gCantCalc.state() == CantCalculator::State::READY) {
         if (M5.BtnB.wasPressed()) {
-            displayStyle_ = (displayStyle_ - 1 + kCantStyleCount) % kCantStyleCount; // Hoch
+            displayStyle_ = (displayStyle_ - 1 + kCantStyleCount) % kCantStyleCount; // up
         } else if (M5.BtnPWR.wasClicked()) {
-            displayStyle_ = (displayStyle_ + 1) % kCantStyleCount; // Runter
+            displayStyle_ = (displayStyle_ + 1) % kCantStyleCount; // down
         }
     }
 
@@ -56,17 +56,17 @@ void CantLevel::draw() {
         canvas.setTextColor(Theme::TEXT, Theme::BG);
         canvas.setTextSize(2);
         canvas.setCursor(8, 60);
-        canvas.print("Waffe");
+        canvas.print("Hold");
         canvas.setCursor(8, 85);
-        canvas.print("waagerecht");
+        canvas.print("weapon");
         canvas.setCursor(8, 110);
-        canvas.print("halten,");
+        canvas.print("level,");
         canvas.setCursor(8, 135);
-        canvas.print("dann A");
+        canvas.print("then A");
         canvas.setTextSize(1);
         canvas.setTextColor(Theme::SUBTEXT, Theme::BG);
         canvas.setCursor(4, 220);
-        canvas.print("A = Nullpunkt setzen");
+        canvas.print("A = set zero point");
         drawBatteryIndicator();
         canvas.pushSprite(0, 0);
         return;
@@ -76,9 +76,9 @@ void CantLevel::draw() {
         canvas.setTextColor(Theme::TEXT, Theme::BG);
         canvas.setTextSize(2);
         canvas.setCursor(8, 50);
-        canvas.print("Jetzt ruhig");
+        canvas.print("Hold");
         canvas.setCursor(8, 75);
-        canvas.print("halten...");
+        canvas.print("steady...");
         char buf[4];
         snprintf(buf, sizeof(buf), "%d", gCantCalc.countdownSecondsLeft());
         drawBigNumber(buf, canvas.width() / 2, 120, Theme::ACCENT2, 1);
@@ -91,17 +91,17 @@ void CantLevel::draw() {
         canvas.setTextColor(Theme::ACCENT2, Theme::BG);
         canvas.setTextSize(2);
         canvas.setCursor(8, 60);
-        canvas.print("Jetzt");
+        canvas.print("Now");
         canvas.setCursor(8, 85);
-        canvas.print("kurz");
+        canvas.print("tilt");
         canvas.setCursor(8, 110);
-        canvas.print("kippen,");
+        canvas.print("briefly,");
         canvas.setCursor(8, 135);
-        canvas.print("dann A");
+        canvas.print("then A");
         canvas.setTextSize(1);
         canvas.setTextColor(Theme::SUBTEXT, Theme::BG);
         canvas.setCursor(4, 220);
-        canvas.print("A = Rohrachse uebernehmen");
+        canvas.print("A = adopt bore axis");
         drawBatteryIndicator();
         canvas.pushSprite(0, 0);
         return;
@@ -114,14 +114,14 @@ void CantLevel::draw() {
     else if (a < AppSettings::cantYellowDeg) color = Theme::WARN;
     else color = Theme::BAD;
 
-    // Zahl bewusst klein gehalten (Standardfont statt grosser 7-Segment-Anzeige) -- eine
-    // staendig wechselnde grosse Zahl lenkt beim Beobachten der Animation nur ab.
+    // Number deliberately kept small (default font instead of large 7-segment display) -- a
+    // constantly changing large number would just be distracting while watching the animation.
     canvas.setTextColor(color, Theme::BG);
     canvas.setTextSize(2);
     canvas.setCursor(4, 16);
     canvas.printf("%+.1f", static_cast<double>(angleDeg));
     canvas.setTextSize(1);
-    canvas.print((char)247); // Grad-Symbol
+    canvas.print((char)247); // degree symbol
 
     int cx = canvas.width() / 2;
     int cy = 130;
@@ -130,9 +130,9 @@ void CantLevel::draw() {
     canvas.setTextColor(Theme::SUBTEXT, Theme::BG);
     canvas.setTextSize(1);
     canvas.setCursor(4, 200);
-    canvas.printf("Stil %d/%d (B/PWR)", displayStyle_ + 1, kCantStyleCount);
+    canvas.printf("Style %d/%d (B/PWR)", displayStyle_ + 1, kCantStyleCount);
     canvas.setCursor(4, 220);
-    canvas.print("A = neu kalibrieren");
+    canvas.print("A = recalibrate");
     drawBatteryIndicator();
     canvas.pushSprite(0, 0);
 }
